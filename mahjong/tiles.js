@@ -23,9 +23,9 @@ export function tileName(tile){
 export function tileFace(tile){
   if(tile.s === "w"){
     return svg(`
-      <text x="50" y="59" text-anchor="middle" font-size="29" font-weight="700"
+      <text x="50" y="59" text-anchor="middle" font-size="27" font-weight="700"
         font-family="Noto Serif SC,Songti SC,SimSun,serif" fill="#d6403b">${NUM_CN[tile.n]}</text>
-      <text x="50" y="101" text-anchor="middle" font-size="27" font-weight="700"
+      <text x="50" y="100" text-anchor="middle" font-size="25" font-weight="700"
         font-family="Noto Serif SC,Songti SC,SimSun,serif" fill="#d6403b">萬</text>
     `);
   }

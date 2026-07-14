@@ -14,7 +14,7 @@
         <div class="logo">🀄</div>
         <div>
           <h1>Nocturne Mahjong</h1>
-          <p>四川麻将 · 血战到底 · 模块化重构版 v0.2</p>
+          <p>四川麻将 · 血战到底 · 家庭大字版</p>
         </div>
       </div>
       <button id="newGameBtn" class="btn btn-primary">新牌局</button>
@@ -40,12 +40,37 @@
       </div>
 
       <aside class="sidebar">
+        <section class="card rules-card">
+          <div class="card-title-row">
+            <h2>规则设置</h2>
+            <span class="rules-hint">新牌局生效</span>
+          </div>
+
+          <label class="rule-toggle">
+            <span>
+              <strong>换三张</strong>
+              <small>可任意选择三张，不限制花色</small>
+            </span>
+            <input id="ruleExchange" type="checkbox" checked>
+            <i></i>
+          </label>
+
+          <label class="rule-toggle">
+            <span>
+              <strong>刮风下雨</strong>
+              <small>启用杠牌相关规则与后续结算</small>
+            </span>
+            <input id="ruleGang" type="checkbox" checked>
+            <i></i>
+          </label>
+        </section>
+
         <section class="card">
           <h2>牌局状态</h2>
           <div class="stats">
             <div><span>阶段</span><strong id="statPhase">准备</strong></div>
             <div><span>当前玩家</span><strong id="statTurn">你</strong></div>
-            <div><span>定缺</span><strong id="statMissing">未选择</strong></div>
+            <div><span>剩余牌</span><strong id="statWall">108</strong></div>
             <div><span>状态</span><strong id="statStatus">未胡</strong></div>
           </div>
         </section>
@@ -61,12 +86,22 @@
         </section>
 
         <section class="card note">
-          当前里程碑：标准牌面、四方布局、发牌、摸牌、出牌、分家弃牌区与本地存档。
-          下一步加入换三张、定缺、碰、杠、点炮与胡牌结算。
+          出牌方式：先点一次选中，牌会抬高；再点同一张才真正打出。摸牌自动完成，新摸到的牌会单独抬起显示。
         </section>
       </aside>
     </section>
   </main>
+
+  <div id="exchangeModal" class="modal">
+    <div class="modal-box">
+      <h2>换三张</h2>
+      <p>任选三张牌。再次点击可取消选择。</p>
+      <div id="exchangeHand" class="exchange-hand"></div>
+      <div class="modal-actions">
+        <button id="exchangeConfirm" class="btn btn-primary" disabled>确认换牌</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast"></div>
 
