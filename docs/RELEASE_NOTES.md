@@ -1,5 +1,14 @@
 # RELEASE NOTES
 
+## Mahjong v0.14.15
+
+Service Worker 缓存：`nocturne-games-v18`
+
+### 修改
+- 顶栏增加「← 返回游戏大厅」，可回到站点主页
+
+---
+
 ## Mahjong v0.14.14（评分与桌面打磨）
 
 Service Worker 缓存：`nocturne-games-v17`
