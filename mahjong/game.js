@@ -1,6 +1,6 @@
 import {renderGame,renderLog,renderExchange,showReaction,hideReaction,showWin,showRoundEnd,showPlayerActionEffect,playDiceAnimation,flashDealCaption,clearDealCaption,hideStartOverlay,showLobby} from "./render.js";
 import {saveState,loadState,clearState} from "./storage.js";
-import {loadRules,saveRules,loadLastDealer,saveLastDealer} from "./config.js";
+import {loadRules,saveRules,loadLastDealer,saveLastDealer,loadNames,saveNames} from "./config.js";
 import {tileName} from "./tiles.js";
 import {getWinInfo} from "./hu.js";
 import {
@@ -16,7 +16,7 @@ import {
   roundSummary
 } from "./score.js";
 
-const names=["瑞","安彬","兰儿","小诺"];
+let names=loadNames();
 /* 相对自己：左=上家，上=对家，右=下家 */
 const seatLabels=["自己","上家","对家","下家"];
 const AI_THINK_MS=1000;
@@ -167,7 +167,9 @@ function newGame(){
   document.getElementById("winModal")?.classList.remove("show");
   document.getElementById("roundEndModal")?.classList.remove("show");
   document.getElementById("newGameModal")?.classList.remove("show");
+  document.getElementById("namesModal")?.classList.remove("show");
   rules=loadRules();
+  names=loadNames();
 
   const dealer=nextDealerSeat();
   saveLastDealer(dealer);
@@ -954,6 +956,32 @@ function setupRuleTestButton(){
 
 document.getElementById("newGameBtn").addEventListener("click",()=>{
   openNewGameConfirm();
+});
+
+function openNamesModal(){
+  names=loadNames();
+  for(let i=0;i<4;i++){
+    const input=document.getElementById(`nameInput${i}`);
+    if(input)input.value=names[i]||"";
+  }
+  document.getElementById("namesModal").classList.add("show");
+}
+
+document.getElementById("editNamesBtn")?.addEventListener("click",openNamesModal);
+
+document.getElementById("namesCancel")?.addEventListener("click",()=>{
+  document.getElementById("namesModal").classList.remove("show");
+});
+
+document.getElementById("namesSave")?.addEventListener("click",()=>{
+  const next=[0,1,2,3].map(i=>document.getElementById(`nameInput${i}`)?.value||"");
+  names=saveNames(next);
+  state.players.forEach((player,index)=>{
+    player.name=names[index];
+  });
+  document.getElementById("namesModal").classList.remove("show");
+  commit();
+  toast("名字已保存");
 });
 
 function openNewGameConfirm(){
