@@ -1,0 +1,32 @@
+{
+  "name": "Nocturne Games",
+  "short_name": "Nocturne",
+  "description": "夜色里的小游戏收藏馆 · 国际象棋与四川麻将",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "display": "standalone",
+  "start_url": "./",
+  "scope": "./",
+  "theme_color": "#08111f",
+  "background_color": "#07101d",
+  "icons": [
+    {
+      "src": "./assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

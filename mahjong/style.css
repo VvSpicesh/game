@@ -30,7 +30,13 @@ button,input{font:inherit}
 }
 .topbar{
   width:100%;display:flex;align-items:center;justify-content:space-between;
-  gap:12px;margin-bottom:8px
+  gap:12px;margin-bottom:8px;flex-wrap:wrap
+}
+.topbar-actions{
+  display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center;min-width:0
+}
+.btn-dev{
+  border-color:rgba(212,175,105,.45);color:#f0d9a8;background:rgba(212,175,105,.12)
 }
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
 .logo{
@@ -48,41 +54,51 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .btn-primary{background:linear-gradient(135deg,#43bc83,#268e62)}
 
 .quick-rules{
-  width:100%;display:flex;gap:8px;align-items:stretch;
-  margin-bottom:8px;padding:8px 10px;border-radius:16px;
-  background:var(--panel);border:1px solid var(--line)
+  display:flex;gap:6px;align-items:center;
+  margin:0;padding:5px 8px;border-radius:14px;
+  background:var(--panel);border:1px solid var(--line);min-width:0
 }
 .quick-rules-title{
-  min-width:100px;display:flex;flex-direction:column;justify-content:center
+  min-width:auto;display:flex;flex-direction:column;justify-content:center;padding-right:2px
 }
-.quick-rules-title strong{font-size:13px}
-.quick-rules-title span{margin-top:2px;color:var(--muted);font-size:9px}
+.quick-rules-title strong{font-size:12px;line-height:1.1}
+.quick-rules-title span{margin-top:1px;color:var(--muted);font-size:9px;white-space:nowrap}
 .quick-rule{
-  flex:1;min-width:0;display:grid;grid-template-columns:40px minmax(0,1fr);
-  gap:8px;align-items:center;padding:7px 9px;border-radius:12px;
+  flex:0 0 auto;min-width:0;display:grid;grid-template-columns:36px auto;
+  gap:6px;align-items:center;padding:5px 8px;border-radius:11px;
   background:rgba(255,255,255,.045);cursor:pointer
 }
 .quick-rule input{display:none}
 .quick-switch{
-  position:relative;width:40px;height:23px;border-radius:999px;
+  position:relative;width:36px;height:20px;border-radius:999px;
   background:rgba(255,255,255,.13);transition:.2s
 }
 .quick-switch::after{
-  content:"";position:absolute;left:3px;top:3px;width:17px;height:17px;
+  content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;
   border-radius:50%;background:white;transition:.2s
 }
 .quick-rule input:checked + .quick-switch{background:linear-gradient(135deg,#43bc83,#268e62)}
-.quick-rule input:checked + .quick-switch::after{transform:translateX(17px)}
+.quick-rule input:checked + .quick-switch::after{transform:translateX(16px)}
 .quick-rule-text{min-width:0;display:flex;flex-direction:column}
-.quick-rule-text strong{font-size:12px}
-.quick-rule-text small{margin-top:2px;color:var(--muted);font-size:9px;line-height:1.35}
+.quick-rule-text strong{font-size:12px;white-space:nowrap}
+.quick-rule-text small{display:none}
 
 .game-layout{
-  width:100%;display:flex;flex-direction:column;gap:8px;min-width:0
+  width:100%;display:flex;flex-direction:column;gap:8px;min-width:0;align-items:stretch
 }
 .table{
   position:relative;width:100%;min-width:0;overflow:hidden;
   aspect-ratio:16/10;border-radius:24px;
+  /* 固定分区：座位带 / 副露轨 / 弃牌区互不互侵 */
+  --band-side:clamp(56px,8.2%,76px);
+  --meld-rail:max(46px,calc(var(--tile-h) * .46 + 12px));
+  --meld-tw:calc(var(--tile-w) * .46 * 1.1);
+  --meld-th:calc(var(--tile-h) * .46 * 1.1);
+  /* 对家手牌缩小后，上带走窄，留给桌心弃牌 */
+  --band-top:calc(var(--tile-h) * .62 + 42px);
+  --band-bottom:calc(var(--tile-h) + 48px);
+  --meld-gap:4px;
+  --discard-inset:calc(var(--band-side) + var(--meld-rail) + 8px);
   background:
     radial-gradient(circle at center,rgba(38,139,94,.24),transparent 50%),
     linear-gradient(145deg,#0b5238,#073623);
@@ -95,23 +111,83 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   box-shadow:inset 0 0 70px rgba(0,0,0,.2)
 }
 .seat{
-  position:absolute;z-index:4;padding:8px;border-radius:15px;
-  background:rgba(4,24,17,.78);border:1px solid rgba(255,255,255,.1)
+  position:absolute;z-index:6;padding:6px 8px;border-radius:15px;
+  background:rgba(4,24,17,.78);border:1px solid rgba(255,255,255,.1);
+  overflow:hidden;box-sizing:border-box
 }
-.seat-top{top:6px;left:50%;transform:translateX(-50%);width:min(76%,820px)}
-.seat-bottom{left:6px;right:6px;bottom:6px}
-.seat-left{left:3px;top:50%;transform:translateY(-50%);width:84px}
-.seat-right{right:3px;top:50%;transform:translateY(-50%);width:84px}
-.seat-header{display:flex;justify-content:space-between;gap:6px;margin-bottom:5px}
-.seat-name{font-weight:850;font-size:12px}
-.seat-meta{font-size:9px;color:var(--muted)}
+/* 上：夹在左右带之间；手牌尺寸靠近左右家，带宽收窄 */
+.seat-top{
+  top:4px;left:var(--band-side);right:var(--band-side);
+  width:auto;transform:none;
+  max-height:none;
+  min-height:calc(var(--tile-h) * .62 + 34px);
+  padding:4px 8px;
+  overflow:visible;
+  z-index:7
+}
+/* 下：夹在左右带之间，不再铺满全宽 */
+.seat-bottom{
+  bottom:4px;left:var(--band-side);right:var(--band-side);
+  max-height:calc(var(--band-bottom) + 8px - 1mm);
+  padding-top:calc(6px - 1mm);
+  padding-bottom:5px;
+  z-index:10
+}
+/* 左/右：夹在上下带之间，尽量拉高以放下 13 张 */
+.seat-left{
+  left:2px;top:calc(var(--band-top) + 2px);bottom:calc(var(--band-bottom) + 2px);
+  width:var(--band-side);transform:none;
+  display:flex;flex-direction:column;padding:4px
+}
+.seat-right{
+  right:2px;top:calc(var(--band-top) + 2px);bottom:calc(var(--band-bottom) + 2px);
+  width:var(--band-side);transform:none;
+  display:flex;flex-direction:column;padding:4px
+}
+.seat-header{display:flex;justify-content:space-between;gap:6px;margin-bottom:5px;flex:0 0 auto}
+.seat-left .seat-header,
+.seat-right .seat-header{
+  flex-direction:column;align-items:flex-start;gap:0;margin-bottom:2px
+}
+.seat-name{font-weight:850;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seat-meta{font-size:9px;color:var(--muted);white-space:nowrap}
+.seat-left .seat-meta,
+.seat-right .seat-meta{font-size:8px;opacity:.85}
 .hand{
   display:flex;justify-content:center;align-items:flex-end;gap:2px;
-  min-height:calc(var(--tile-h) + 14px)
+  min-height:calc(var(--tile-h) + 14px);min-width:0
 }
-.hand-vertical{flex-direction:column;gap:1px;min-height:0}
+.seat-top .hand{
+  min-height:calc(var(--tile-h) * .62 + 4px);
+  align-items:center;
+  padding-bottom:2px;
+  gap:1px
+}
+.seat-top .hand .tile{
+  width:calc(var(--tile-w) * .58);
+  height:calc(var(--tile-h) * .58)
+}
+/*
+  左右手牌：旋转后视觉高度≈牌宽。
+  用负 margin 把布局间距收成「牌宽」，再按容器高度自适应，保证 13 张都能露出。
+*/
+.hand-vertical{
+  flex:1 1 auto;flex-direction:column;gap:0;min-height:0;
+  justify-content:center;align-items:center;overflow:visible;
+  container-type:size
+}
 .hand-left .tile{transform:rotate(90deg)}
 .hand-right .tile{transform:rotate(-90deg)}
+.seat-left .hand .tile,
+.seat-right .hand .tile{
+  --side-w:min(calc(var(--tile-w)*.58),calc(100cqh / 13.15));
+  width:var(--side-w);
+  height:calc(var(--side-w) * 1.42);
+  margin:0 0 calc(var(--side-w) - var(--side-w) * 1.42);
+  flex:0 0 auto
+}
+.seat-left .hand .tile:last-child,
+.seat-right .hand .tile:last-child{margin-bottom:0}
 
 .tile{
   width:var(--tile-w);height:var(--tile-h);flex:0 0 auto;
@@ -144,16 +220,66 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   border:1px solid rgba(255,255,255,.25);border-radius:4px
 }
 .tile-small{width:calc(var(--tile-w)*.68);height:calc(var(--tile-h)*.68);cursor:default}
+.tile-discard{
+  width:calc(var(--tile-w)*.46);
+  height:calc(var(--tile-h)*.46);
+  cursor:default;
+  border-radius:5px
+}
 
 .discard-zone{
-  position:absolute;z-index:2;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start
+  position:absolute;z-index:12;display:flex;flex-wrap:wrap;gap:2px;align-content:flex-start
 }
-.discard-top{top:20%;left:24%;right:24%;justify-content:center}
-.discard-bottom{bottom:21%;left:24%;right:24%;justify-content:center}
-.discard-left{left:11%;top:29%;bottom:29%;width:120px;flex-direction:column;align-content:center}
-.discard-right{right:11%;top:29%;bottom:29%;width:120px;flex-direction:column;align-content:center}
-.discard-left .tile{transform:rotate(90deg)}
-.discard-right .tile{transform:rotate(-90deg)}
+/* 弃牌集中在桌心；对家带宽收窄后可略外扩 */
+.discard-top{
+  top:30%;
+  left:30%;
+  right:30%;
+  justify-content:center;
+  flex-direction:row;
+  flex-wrap:wrap;
+  max-height:16%
+}
+.discard-bottom{
+  bottom:30%;
+  left:30%;
+  right:30%;
+  justify-content:center;
+  flex-direction:row;
+  flex-wrap:wrap;
+  max-height:16%
+}
+.discard-left,
+.discard-right{
+  top:26%;
+  bottom:26%;
+  width:calc(var(--tile-w) * .42 * 2 + 8px);
+  max-width:calc(var(--tile-w) * .42 * 2 + 8px);
+  flex-direction:column;
+  flex-wrap:wrap;
+  align-items:center;
+  align-content:center;
+  justify-content:flex-start;
+  gap:1px;
+  overflow:visible
+}
+.discard-left{left:26%}
+.discard-right{right:26%}
+.discard-left .tile,
+.discard-right .tile{
+  width:calc(var(--tile-w)*.42);
+  height:calc(var(--tile-h)*.42)
+}
+.discard-left .tile{
+  transform:rotate(90deg);
+  margin-bottom:calc(var(--tile-w)*.42 - var(--tile-h)*.42)
+}
+.discard-right .tile{
+  transform:rotate(-90deg);
+  margin-bottom:calc(var(--tile-w)*.42 - var(--tile-h)*.42)
+}
+.discard-left .tile:last-child,
+.discard-right .tile:last-child{margin-bottom:0}
 
 .table-center{
   position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);
@@ -165,7 +291,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .turn{font-size:11px;margin-top:5px}
 
 .sidebar{
-  width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px
+  width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+  min-height:0
 }
 .card{
   min-width:0;padding:13px;border-radius:17px;background:var(--panel);
@@ -177,10 +304,78 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .stats span{display:block;font-size:9px;color:var(--muted)}
 .stats strong{display:block;margin-top:3px;font-size:14px}
 .actions{font-size:12px;color:var(--muted);line-height:1.6}
-.card-log,.note{grid-column:1/-1}
+.card-log,.note,.card-score{grid-column:1/-1}
 .log{height:160px;overflow:auto;font-size:11px;line-height:1.6;color:#d5e8dc}
 .log p{margin:0;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}
 .note{font-size:11px;color:var(--muted);line-height:1.6}
+
+.score-board-head{
+  display:grid;grid-template-columns:1.2fr .9fr .7fr;gap:6px;
+  padding:0 4px 6px;font-size:10px;color:var(--muted)
+}
+.score-board{display:flex;flex-direction:column;gap:6px}
+.score-row{
+  display:grid;grid-template-columns:1.2fr .9fr .7fr;gap:6px;align-items:center;
+  padding:8px 9px;border-radius:10px;background:rgba(255,255,255,.045)
+}
+.score-name{font-size:13px;font-weight:750;display:flex;align-items:center;gap:6px}
+.score-won{
+  font-size:10px;padding:2px 6px;border-radius:999px;
+  background:rgba(212,175,55,.22);color:var(--gold);font-weight:800
+}
+.score-total{font-size:15px;font-weight:900}
+.score-delta{font-size:12px;color:var(--muted);font-weight:700}
+.score-row-neg .score-total{color:#ff8f8f}
+.score-feed{
+  margin-top:8px;max-height:72px;overflow:auto;
+  font-size:11px;line-height:1.45;color:#d5e8dc
+}
+.score-feed p{margin:0;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+
+.win-score{
+  margin:12px auto 0!important;
+  color:var(--gold)!important;
+  font-size:clamp(18px,2.6vw,24px)!important;
+  font-weight:900!important
+}
+.win-tile-face{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  margin:14px 0 4px
+}
+.win-tile-face .tile-win{
+  width:calc(var(--tile-w) * 1.35);
+  height:calc(var(--tile-h) * 1.35);
+  cursor:default;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  border:2px solid rgba(212,175,55,.55)
+}
+.hand .tile-win-show{
+  box-shadow:0 0 0 2px var(--gold),0 6px 12px rgba(0,0,0,.35);
+  margin-left:clamp(6px,.8vw,12px)
+}
+.hand-vertical .tile-win-show{
+  margin-left:0;
+  margin-top:clamp(4px,.6vh,10px);
+  margin-bottom:0
+}
+.round-end-summary{
+  margin:16px 0 4px;display:flex;flex-direction:column;gap:8px;text-align:left
+}
+.round-sum-row{
+  display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;
+  padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05)
+}
+.round-sum-name{font-size:clamp(15px,2vw,18px);font-weight:850}
+.round-sum-status{font-size:12px;color:var(--muted)}
+.round-sum-delta{font-size:14px;font-weight:800;min-width:3em;text-align:right}
+.round-sum-total{font-size:15px;font-weight:900;min-width:5.5em;text-align:right}
+.effect-score{
+  margin-top:4px;font-size:clamp(14px,2vw,18px);font-weight:900;color:var(--gold);
+  text-shadow:0 2px 8px rgba(0,0,0,.45)
+}
 
 .modal{
   position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
@@ -194,10 +389,12 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .modal-box h2{margin:0 0 6px}
 .modal-box p{margin:0;color:var(--muted);font-size:11px}
 .exchange-hand{
-  display:flex;flex-wrap:wrap;justify-content:center;gap:4px;
-  margin:18px 0 14px;min-height:calc(var(--tile-h) + 18px)
+  display:flex;flex-wrap:nowrap;justify-content:center;align-items:flex-end;
+  gap:clamp(2px,.5vw,5px);margin:22px 0 14px;padding:22px 4px 6px;
+  min-height:calc(var(--tile-h)*.9 + 40px);overflow-x:auto
 }
-.modal-actions{display:flex;justify-content:center}
+.modal-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.modal-actions-split{margin-top:16px}
 .toast{
   position:fixed;left:50%;bottom:20px;z-index:60;opacity:0;pointer-events:none;
   transform:translate(-50%,18px);padding:9px 14px;border-radius:999px;
@@ -207,20 +404,15 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 
 @media(max-width:699px){
   :root{--tile-w:clamp(27px,7vw,36px)}
-  .quick-rules{
-    display:grid;grid-template-columns:1fr 1fr;padding:7px
+  .topbar-actions{width:100%;justify-content:stretch}
+  .quick-rules{flex:1;min-width:0;justify-content:space-between}
+  .quick-rules-title{display:none}
+  .table{
+    aspect-ratio:auto;min-height:680px;
+    --band-side:clamp(52px,14vw,68px);
+    --meld-rail:max(42px,calc(var(--tile-h) * .46 * 1.1 + 8px));
+    --band-top:calc(var(--tile-h) * .62 + 36px)
   }
-  .quick-rules-title{
-    grid-column:1/-1;min-width:0;flex-direction:row;
-    justify-content:space-between;align-items:center
-  }
-  .table{aspect-ratio:auto;min-height:680px}
-  .seat-top{width:78%}
-  .seat-left,.seat-right{width:70px}
-  .discard-top{top:22%;left:22%;right:22%}
-  .discard-bottom{bottom:22%;left:22%;right:22%}
-  .discard-left{left:8%;top:31%;bottom:31%;width:78px}
-  .discard-right{right:8%;top:31%;bottom:31%;width:78px}
   .table-center{width:124px;padding:9px}
   .remaining{font-size:23px}
   .sidebar{display:flex;flex-direction:column}
@@ -228,25 +420,75 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 
 @media(min-width:700px) and (max-width:1299px){
   :root{--tile-w:clamp(42px,5vw,64px)}
-  .table{aspect-ratio:16/9.4}
-  .seat-left,.seat-right{width:98px}
+  .table{
+    aspect-ratio:16/9.4;
+    --band-side:clamp(58px,9%,84px);
+    --meld-rail:max(46px,calc(var(--tile-h) * .46 * 1.1 + 10px));
+    --band-top:calc(var(--tile-h) * .62 + 40px)
+  }
 }
 
 @media(orientation:landscape) and (max-width:1299px){
   :root{--tile-w:clamp(38px,6.2vh,58px)}
   .topbar{margin-bottom:5px}
-  .quick-rules{margin-bottom:6px;padding-block:6px}
   .table{aspect-ratio:16/8.7;min-height:0}
   .sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
 @media(min-width:1300px){
   :root{--tile-w:clamp(46px,3.6vw,66px)}
-  .game-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px}
-  .table{aspect-ratio:16/10}
-  .sidebar{display:flex;flex-direction:column}
-  .card-log,.note{grid-column:auto}
-  .log{height:250px}
+  .game-layout{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(260px,300px);
+    align-items:stretch;
+  }
+  /* 以牌桌 aspect-ratio 定行高；侧栏不得把牌局拉高 */
+  .table{
+    aspect-ratio:16/10;
+    width:100%;
+    height:auto;
+    max-height:none;
+    --band-side:clamp(64px,8%,90px);
+    --meld-rail:max(48px,calc(var(--tile-h) * .46 * 1.1 + 12px));
+    --band-top:calc(var(--tile-h) * .62 + 44px)
+  }
+  .sidebar{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    /* 高度贡献为 0，拉伸后贴齐牌桌高度 */
+    height:0;
+    min-height:100%;
+    max-height:100%;
+    overflow:hidden;
+    align-self:stretch;
+  }
+  .sidebar .card{
+    flex:0 0 auto;
+    padding:9px 11px;
+  }
+  .sidebar .card h2{margin:0 0 6px;font-size:12px}
+  .sidebar .stats{gap:5px}
+  .sidebar .stats div{padding:6px}
+  .sidebar .stats strong{font-size:13px}
+  .sidebar .score-row{padding:6px 8px}
+  .sidebar .score-feed{display:none}
+  .sidebar .card-log{
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .sidebar .log{
+    flex:1 1 auto;
+    min-height:0;
+    height:auto;
+    max-height:none;
+    overflow:hidden;
+  }
+  .sidebar .note{display:none}
+  .card-log,.note,.card-score{grid-column:auto}
 }
 
 
@@ -262,13 +504,41 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   width:calc(var(--tile-w)*.62);height:calc(var(--tile-h)*.62);cursor:default
 }
 .reaction-box{text-align:center}
+.win-box{text-align:center}
+.win-box h2{
+  margin:0 0 10px;
+  font-size:clamp(22px,3.2vw,30px);
+  font-weight:900
+}
+.win-title{
+  margin:14px 0 12px;
+  font-size:clamp(26px,4.2vw,40px);
+  font-weight:950;
+  line-height:1.35;
+  color:var(--gold);
+  letter-spacing:.02em
+}
+.win-box p,
+#winDetail,
+#roundEndDetail,
+#newGameDetail{
+  margin:0 auto;
+  max-width:36em;
+  color:var(--muted);
+  font-size:clamp(16px,2.4vw,22px);
+  line-height:1.55;
+  font-weight:650
+}
+.win-box .btn{
+  min-height:48px;
+  padding:12px 22px;
+  font-size:clamp(16px,2vw,20px);
+  font-weight:900
+}
 .reaction-buttons{
   display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin-top:16px
 }
 .reaction-buttons .btn{min-width:82px}
-.win-title{
-  margin:12px 0 8px;font-size:24px;font-weight:900;color:var(--gold)
-}
 .action-badge{
   display:inline-flex;align-items:center;justify-content:center;
   min-width:58px;padding:8px 10px;border-radius:11px;
@@ -310,14 +580,14 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .action-dock-button{
   min-width:88px;
   min-height:58px;
-  padding:10px 18px;
+  padding:10px 14px;
   border:none;
   border-radius:16px;
   color:#fff;
   background:linear-gradient(145deg,#2d9f6d,#18734c);
   border:2px solid rgba(255,255,255,.18);
   box-shadow:0 8px 18px rgba(0,0,0,.28);
-  font-size:clamp(24px,3vw,36px);
+  font-size:inherit;
   font-weight:950;
   line-height:1;
   cursor:pointer;
@@ -357,8 +627,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .action-dock-button{
     min-width:72px;
     min-height:52px;
-    padding:8px 13px;
-    font-size:25px;
+    padding:8px 12px;
     border-radius:14px;
   }
 }
@@ -372,26 +641,22 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .action-dock-button{
     min-width:92px;
     min-height:60px;
-    font-size:30px;
   }
 }
 
 
 /* v0.9 exposed meld and action layout fix */
 
-/* 玩家信息框只负责头像和暗牌，不再承载副露。 */
-.seat{
-  overflow:visible;
-}
-
-/* 四家独立副露区。 */
+/* 四家副露轨：不旋转、不压弃牌、不被底座位裁切 */
 .meld-zone{
   position:absolute;
-  z-index:12;
+  z-index:8;
   display:flex;
-  gap:6px;
+  gap:5px;
   align-items:center;
   pointer-events:none;
+  overflow:visible;
+  box-sizing:border-box;
 }
 
 .meld-zone:empty{
@@ -399,62 +664,97 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 
 .meld-top{
-  top:calc(var(--tile-h) + 58px);
-  left:50%;
-  transform:translateX(-50%);
+  top:calc(var(--band-top) + var(--meld-gap));
+  left:var(--discard-inset);
+  right:var(--discard-inset);
+  transform:none;
   justify-content:center;
+  flex-wrap:wrap;
+  max-height:calc(var(--meld-th) + 12px);
 }
 
 .meld-bottom{
-  left:clamp(14px,2vw,30px);
-  bottom:calc(var(--tile-h) + 74px);
+  left:var(--discard-inset);
+  right:var(--discard-inset);
+  bottom:calc(var(--band-bottom) + var(--meld-gap));
+  justify-content:center;
+  flex-wrap:wrap;
+  max-height:calc(var(--meld-th) + 12px);
+  z-index:8;
+}
+
+/* 左右副露：在座位与桌心之间，上半段排布，避开自家底栏手牌 */
+.meld-left,
+.meld-right{
+  top:calc(var(--band-top) + 10px);
+  bottom:calc(var(--band-bottom) + 18px);
+  width:var(--meld-rail);
+  max-height:none;
+  transform:none;
+  flex-direction:column;
+  flex-wrap:nowrap;
+  align-content:center;
+  align-items:center;
   justify-content:flex-start;
+  padding-top:clamp(8px,4%,28px);
+  gap:6px;
+  overflow:visible;
+  z-index:9;
 }
 
 .meld-left{
-  left:calc(88px + clamp(10px,1.5vw,22px));
-  top:50%;
-  transform:translateY(-50%);
-  flex-direction:column;
-  align-items:flex-start;
+  left:calc(var(--band-side) + 4px);
 }
 
 .meld-right{
-  right:calc(88px + clamp(10px,1.5vw,22px));
-  top:50%;
-  transform:translateY(-50%);
-  flex-direction:column;
-  align-items:flex-end;
+  right:calc(var(--band-side) + 4px);
 }
 
 .meld-group{
   display:flex;
-  gap:2px;
-  padding:4px;
-  border-radius:10px;
+  gap:1px;
+  padding:3px;
+  border-radius:8px;
   background:rgba(4,24,17,.82);
   border:1px solid rgba(255,255,255,.12);
-  box-shadow:0 8px 18px rgba(0,0,0,.28);
+  box-shadow:0 6px 14px rgba(0,0,0,.25);
+  flex:0 0 auto;
+}
+.meld-group-angang{
+  outline:1px dashed rgba(255,255,255,.22);
 }
 
 .meld-group .tile{
-  width:calc(var(--tile-w)*.72);
-  height:calc(var(--tile-h)*.72);
+  width:var(--meld-tw);
+  height:var(--meld-th);
   cursor:default;
   margin:0;
   transform:none!important;
 }
 
-.meld-left .meld-group{
-  transform:rotate(90deg);
-  transform-origin:center;
-  margin-block:14px;
+/* 左右：组内竖排 + 单牌旋转，朝向该家；负 margin 压紧布局间距 */
+.meld-left .meld-group,
+.meld-right .meld-group{
+  flex-direction:column;
+  gap:0;
+  transform:none!important;
+  margin:0;
+  padding:4px 3px;
 }
 
-.meld-right .meld-group{
-  transform:rotate(-90deg);
-  transform-origin:center;
-  margin-block:14px;
+.meld-left .meld-group .tile{
+  transform:rotate(90deg)!important;
+  margin:0 0 calc(var(--meld-tw) - var(--meld-th));
+}
+
+.meld-right .meld-group .tile{
+  transform:rotate(-90deg)!important;
+  margin:0 0 calc(var(--meld-tw) - var(--meld-th));
+}
+
+.meld-left .meld-group .tile:last-child,
+.meld-right .meld-group .tile:last-child{
+  margin-bottom:0;
 }
 
 /* 旧的 seat 内副露隐藏，防止重复和遮挡。 */
@@ -462,102 +762,165 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   display:none!important;
 }
 
-/* 操作按钮永远浮在自己手牌右上方。 */
+/* 操作按钮落在底部带之上、副露轨之内。 */
 .action-dock{
   position:absolute!important;
-  z-index:100!important;
-  right:clamp(12px,2vw,28px)!important;
-  bottom:calc(var(--tile-h) + 88px)!important;
-  max-width:min(68%,680px)!important;
+  z-index:50!important;
+  right:var(--discard-inset)!important;
+  bottom:calc(var(--band-bottom) + calc(var(--tile-h) * .58 + 24px))!important;
+  max-width:min(60%,620px)!important;
   overflow:visible!important;
 }
 
-/* 确保手牌区不会盖住副露和按钮。 */
-.seat-bottom{
-  z-index:20;
-}
-
-.meld-bottom{
-  z-index:30;
-}
-
-.action-dock{
-  z-index:50!important;
-}
-
-/* 给自己的副露和手牌之间留出明确空间。 */
 .seat-bottom .hand{
-  padding-top:6px;
+  padding-top:calc(4px - 1mm);
+  min-height:calc(var(--tile-h) + 14px - 1mm);
 }
 
-/* 左右玩家的座位稍微往外收，给副露让出内侧空间。 */
-.seat-left{
-  left:3px;
-  width:82px;
+/* 操作按钮内嵌麻将图案。 */
+.action-dock-button{
+  display:inline-flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-width:102px;
+}
+.action-dock-button .reaction-tile{
+  display:grid;
+  place-items:center;
+  line-height:0;
+}
+.action-dock-button .tile-reaction,
+.action-dock-button .reaction-tile .tile{
+  width:clamp(42px,5.2vw,56px);
+  height:calc(clamp(42px,5.2vw,56px) * 1.42);
+  cursor:default;
+  pointer-events:none;
+  margin:0;
+  transform:none!important;
+  box-shadow:0 4px 10px rgba(0,0,0,.28);
+}
+.action-dock-button .reaction-label{
+  font-size:clamp(22px,2.8vw,34px);
+  font-weight:950;
+  line-height:1;
+}
+.action-dock-button.pass{
+  min-width:88px;
 }
 
-.seat-right{
-  right:3px;
-  width:82px;
+/* 他家操作飘字（非阻塞）。 */
+.player-action-effect{
+  position:absolute;
+  z-index:35;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:14px;
+  background:rgba(4,22,16,.9);
+  border:1px solid rgba(239,199,104,.45);
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  pointer-events:none;
+  animation:playerActionFloat 3s ease forwards;
+}
+.player-action-effect .effect-label{
+  font-size:clamp(22px,3vw,34px);
+  font-weight:950;
+  color:#f6e7b2;
+  line-height:1;
+}
+.player-action-effect .effect-tile{
+  line-height:0;
+}
+.player-action-effect .tile-effect,
+.player-action-effect .tile{
+  width:clamp(34px,4vw,46px);
+  height:calc(clamp(34px,4vw,46px) * 1.42);
+  cursor:default;
+  transform:none!important;
+  margin:0;
+}
+.player-action-bottom{
+  left:50%;
+  bottom:calc(var(--band-bottom) + 56px);
+  transform:translateX(-50%);
+}
+.player-action-top{
+  left:50%;
+  top:calc(var(--band-top) + 40px);
+  transform:translateX(-50%);
+}
+.player-action-left{
+  left:22%;
+  top:42%;
+  transform:translateY(-50%);
+}
+.player-action-right{
+  right:22%;
+  top:42%;
+  transform:translateY(-50%);
+}
+@keyframes playerActionFloat{
+  0%{
+    opacity:0;
+    filter:blur(.4px);
+  }
+  8%{
+    opacity:1;
+    filter:blur(0);
+  }
+  78%{
+    opacity:1;
+    margin-top:0;
+  }
+  100%{
+    opacity:0;
+    margin-top:-20px;
+  }
 }
 
 /* 小屏调整。 */
 @media(max-width:699px){
-  .meld-top{
-    top:calc(var(--tile-h) + 52px);
-  }
-
-  .meld-bottom{
-    left:8px;
-    bottom:calc(var(--tile-h) + 70px);
-  }
-
-  .meld-left{
-    left:76px;
-  }
-
-  .meld-right{
-    right:76px;
-  }
-
-  .meld-group{
-    gap:1px;
-    padding:3px;
-  }
-
   .meld-group .tile{
-    width:calc(var(--tile-w)*.66);
-    height:calc(var(--tile-h)*.66);
+    width:calc(var(--tile-w) * .46 * 1.1);
+    height:calc(var(--tile-h) * .46 * 1.1);
+  }
+
+  .meld-left,
+  .meld-right{
+    width:clamp(42px,13vw,64px);
+    gap:6px;
   }
 
   .action-dock{
-    right:7px!important;
-    bottom:calc(var(--tile-h) + 84px)!important;
+    right:calc(var(--band-side) + 4px)!important;
+    bottom:calc(var(--band-bottom) + calc(var(--tile-h) * .72 + 22px))!important;
     max-width:92%!important;
   }
+
+  .action-dock-button .tile-reaction,
+  .action-dock-button .reaction-tile .tile{
+    width:clamp(40px,11vw,50px);
+    height:calc(clamp(40px,11vw,50px) * 1.42);
+  }
+
+  .player-action-left{left:calc(var(--band-side) + 12%)}
+  .player-action-right{right:calc(var(--band-side) + 12%)}
+  .player-action-bottom{bottom:calc(var(--band-bottom) + 48px)}
 }
 
 /* 横屏和平板。 */
 @media(orientation:landscape) and (max-width:1299px){
-  .meld-bottom{
-    bottom:calc(var(--tile-h) + 64px);
-  }
-
-  .meld-top{
-    top:calc(var(--tile-h) + 48px);
-  }
-
-  .meld-left{
-    left:104px;
-  }
-
+  .meld-left,
   .meld-right{
-    right:104px;
+    width:clamp(64px,9vw,96px);
   }
 
   .action-dock{
-    right:18px!important;
-    bottom:calc(var(--tile-h) + 72px)!important;
+    right:calc(var(--band-side) + 10px)!important;
+    bottom:calc(var(--band-bottom) + calc(var(--tile-h) * .72 + 20px))!important;
   }
 }
 
@@ -572,10 +935,14 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .exchange-hand{
   position:relative;
   z-index:2;
+  flex-wrap:nowrap!important;
 }
 .exchange-hand .tile{
   position:relative;
   z-index:1;
+  flex:0 0 auto;
+  width:clamp(26px,calc((min(780px,92vw) - 56px) / 13 - 3px),var(--tile-w));
+  height:calc(clamp(26px,calc((min(780px,92vw) - 56px) / 13 - 3px),var(--tile-w)) * 1.42);
   cursor:pointer!important;
   pointer-events:auto!important;
   overflow:visible;
@@ -609,4 +976,98 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 #exchangeConfirm:not(:disabled){
   box-shadow:0 0 0 3px rgba(239,199,104,.35),0 10px 24px rgba(0,0,0,.3);
+}
+
+/* v0.13 开局骰子 / 发牌 / 庄家 */
+.start-overlay{
+  position:absolute;inset:0;z-index:40;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:18px;padding:20px;
+  background:rgba(3,18,12,.72);
+  backdrop-filter:blur(2px);
+  pointer-events:auto
+}
+.start-overlay[hidden]{display:none!important}
+.start-overlay.lobby-mode{pointer-events:auto}
+.start-play-btn{
+  min-width:140px;min-height:48px;font-size:20px;font-weight:900;
+  pointer-events:auto;cursor:pointer
+}
+.start-overlay:not(.lobby-mode) .start-play-btn{display:none}
+.dice-board{display:flex;gap:18px;align-items:center}
+.die{
+  width:66px;height:66px;border-radius:14px;
+  background:linear-gradient(145deg,#ff6b5a,#c62828 62%,#8e1616);
+  border:2px solid rgba(255,220,200,.55);
+  box-shadow:0 12px 28px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.35);
+  display:grid;place-items:center;
+  font-size:36px;font-weight:900;color:#fff8f0;
+  transition:transform .12s ease
+}
+.die.rolling{animation:dieShake .14s linear infinite}
+@keyframes dieShake{
+  0%{transform:translate(0,0) rotate(0)}
+  25%{transform:translate(2px,-3px) rotate(8deg)}
+  50%{transform:translate(-3px,2px) rotate(-6deg)}
+  75%{transform:translate(3px,1px) rotate(4deg)}
+  100%{transform:translate(0,0) rotate(0)}
+}
+.die[data-face="1"]::after{content:"⚀"}
+.die[data-face="2"]::after{content:"⚁"}
+.die[data-face="3"]::after{content:"⚂"}
+.die[data-face="4"]::after{content:"⚃"}
+.die[data-face="5"]::after{content:"⚄"}
+.die[data-face="6"]::after{content:"⚅"}
+.start-caption{
+  min-height:1.4em;text-align:center;
+  font-size:clamp(18px,3vw,28px);font-weight:900;color:#f6e7b2;
+  text-shadow:0 2px 10px rgba(0,0,0,.45)
+}
+.seat-name .dealer-badge{
+  display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;
+  font-size:10px;font-weight:900;vertical-align:middle;
+  color:#243015;background:var(--gold);border:1px solid #fff6cc
+}
+.seat-status{
+  flex:0 0 auto;
+  align-self:flex-start;
+  white-space:nowrap;
+  font-weight:950;
+  line-height:1.2
+}
+.seat-status-play{
+  font-size:clamp(11px,1.4vw,14px);
+  color:var(--muted)
+}
+.seat-status-won{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:clamp(16px,2.4vw,22px);
+  color:#243015;
+  background:linear-gradient(145deg,#ffe08a,#efc768);
+  border:2px solid #fff6cc;
+  box-shadow:0 4px 12px rgba(0,0,0,.28)
+}
+.seat-left .seat-status-won,
+.seat-right .seat-status-won{
+  font-size:clamp(14px,2vw,18px);
+  padding:3px 8px
+}
+.hand .tile.tile-deal-in{
+  animation:tileDealIn .28s ease both
+}
+@keyframes tileDealIn{
+  from{opacity:0;transform:translateY(-10px) scale(.86)}
+  to{opacity:1;transform:none}
+}
+.seat-left .hand .tile.tile-deal-in,
+.seat-right .hand .tile.tile-deal-in{
+  animation:tileDealInFade .28s ease both
+}
+@keyframes tileDealInFade{
+  from{opacity:0}
+  to{opacity:1}
 }

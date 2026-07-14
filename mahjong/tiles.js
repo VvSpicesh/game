@@ -46,13 +46,20 @@ export function tileFace(tile){
   }
 
   if(tile.n===1){
-    return svg(`<g transform="translate(50 70)">
-      <ellipse cx="0" cy="4" rx="18" ry="31" fill="#2b9a60" stroke="#174f34" stroke-width="3"/>
-      <circle cx="0" cy="-15" r="8" fill="#d94b45"/>
-      <path d="M-17 3 Q0 -8 17 3 Q0 16 -17 3Z" fill="#2e75ad"/>
-      <path d="M-14 18 Q0 7 14 18 Q0 31 -14 18Z" fill="#d94b45"/>
-      <circle cx="0" cy="4" r="5" fill="#f3d36b"/>
-    </g>`);
+    /* 幺鸡：竹竿 + 侧视小鸡，避免大圆被看成一筒 */
+    return svg(`
+      <rect x="47" y="22" width="6" height="98" rx="3" fill="#2f9f61" stroke="#175338" stroke-width="2"/>
+      <line x1="48.5" y1="42" x2="51.5" y2="42" stroke="#e7f7ea" stroke-width="2"/>
+      <line x1="48.5" y1="68" x2="51.5" y2="68" stroke="#e7f7ea" stroke-width="2"/>
+      <line x1="48.5" y1="94" x2="51.5" y2="94" stroke="#e7f7ea" stroke-width="2"/>
+      <ellipse cx="42" cy="58" rx="14" ry="11" fill="#3cbc74" stroke="#175338" stroke-width="2"/>
+      <circle cx="32" cy="50" r="7" fill="#3cbc74" stroke="#175338" stroke-width="2"/>
+      <path d="M24 50 L16 48 L24 46 Z" fill="#e8a23a" stroke="#b56b12" stroke-width="1"/>
+      <path d="M30 44 L28 38 L34 42 Z" fill="#d94b45"/>
+      <circle cx="30" cy="49" r="1.6" fill="#173b2a"/>
+      <path d="M48 64 Q58 58 62 50" fill="none" stroke="#2f9f61" stroke-width="3"/>
+      <path d="M38 68 L36 78 M46 68 L48 78" stroke="#e8a23a" stroke-width="2"/>
+    `);
   }
 
   const G="#2b9a60",R="#d94b45";
