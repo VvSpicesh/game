@@ -1,4 +1,4 @@
-const NUM_CN = ["","一","二","三","四","五","六","七","八","九"];
+const NUM_CN=["","一","二","三","四","五","六","七","八","九"];
 
 function svg(content){
   return `<svg viewBox="0 0 100 140" aria-hidden="true">${content}</svg>`;
@@ -16,22 +16,21 @@ function bamboo(x,y,rotate=0,color="#2b9a60"){
 }
 
 export function tileName(tile){
-  const suit = {w:"万",t:"条",b:"筒"}[tile.s];
-  return `${tile.n}${suit}`;
+  return `${tile.n}${{w:"万",t:"条",b:"筒"}[tile.s]}`;
 }
 
 export function tileFace(tile){
-  if(tile.s === "w"){
+  if(tile.s==="w"){
     return svg(`
-      <text x="50" y="59" text-anchor="middle" font-size="27" font-weight="700"
+      <text x="50" y="58" text-anchor="middle" font-size="26" font-weight="700"
         font-family="Noto Serif SC,Songti SC,SimSun,serif" fill="#d6403b">${NUM_CN[tile.n]}</text>
-      <text x="50" y="100" text-anchor="middle" font-size="25" font-weight="700"
+      <text x="50" y="99" text-anchor="middle" font-size="24" font-weight="700"
         font-family="Noto Serif SC,Songti SC,SimSun,serif" fill="#d6403b">萬</text>
     `);
   }
 
-  if(tile.s === "b"){
-    const R="#d94b45", G="#2b9a60", B="#2e75ad";
+  if(tile.s==="b"){
+    const R="#d94b45",G="#2b9a60",B="#2e75ad";
     const layouts={
       1:[[50,70,27,R]],
       2:[[50,38,14,G],[50,102,14,B]],
@@ -46,7 +45,7 @@ export function tileFace(tile){
     return svg(layouts[tile.n].map(([x,y,r,c])=>circle(x,y,r,c)).join(""));
   }
 
-  if(tile.n === 1){
+  if(tile.n===1){
     return svg(`<g transform="translate(50 70)">
       <ellipse cx="0" cy="4" rx="18" ry="31" fill="#2b9a60" stroke="#174f34" stroke-width="3"/>
       <circle cx="0" cy="-15" r="8" fill="#d94b45"/>
@@ -56,7 +55,7 @@ export function tileFace(tile){
     </g>`);
   }
 
-  const G="#2b9a60", R="#d94b45";
+  const G="#2b9a60",R="#d94b45";
   const layouts={
     2:[[50,38,0,G],[50,102,0,G]],
     3:[[32,34,-10,G],[68,34,10,G],[50,100,0,R]],

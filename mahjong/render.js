@@ -26,7 +26,7 @@ export function renderGame(state,handlers){
 
   state.players.forEach((player,index)=>renderSeat(state,player,index,handlers));
   renderDiscards(state);
-  renderActions(state,handlers);
+  renderActions(state);
 }
 
 function renderSeat(state,player,index,handlers){
@@ -79,17 +79,17 @@ function renderDiscards(state){
   }
 }
 
-function renderActions(state,handlers){
+function renderActions(state){
   const actions=document.getElementById("actions");
-  actions.innerHTML="";
 
   if(state.phase==="出牌"&&state.turn===0){
-    const tip=document.createElement("div");
-    tip.className="seat-meta";
-    tip.textContent=state.selectedTileIndex===null
-      ?"请先点一张牌"
-      :"再点一次选中的牌即可打出";
-    actions.appendChild(tip);
+    actions.textContent=state.selectedTileIndex===null
+      ?"请先点一张牌，选中后会抬高。"
+      :"再点一次同一张牌即可打出。";
+  }else if(state.phase==="换三张"){
+    actions.textContent="请选择任意三张牌进行交换。";
+  }else{
+    actions.textContent="电脑正在自动摸牌和出牌。";
   }
 }
 

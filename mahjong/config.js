@@ -1,13 +1,13 @@
-const KEY = "nocturne_mahjong_rules_v03";
+const KEY="nocturne_mahjong_rules_v06";
 
-export const defaultRules = {
-  exchangeThree: true,
-  gangRain: true
+export const defaultRules={
+  exchangeThree:true,
+  gangRain:true
 };
 
 export function loadRules(){
   try{
-    return {...defaultRules,...JSON.parse(localStorage.getItem(KEY) || "{}")};
+    return {...defaultRules,...JSON.parse(localStorage.getItem(KEY)||"{}")};
   }catch{
     return {...defaultRules};
   }

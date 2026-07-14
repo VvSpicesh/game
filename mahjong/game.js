@@ -5,9 +5,26 @@ import {tileName} from "./tiles.js";
 
 const names=["你","阿麻","小川","幺鸡"];
 let rules=loadRules();
-let state=loadState()||createInitialState();
+let state=loadState();
 let aiTimer=null;
 let exchangeSelection=[];
+
+function isCompatibleState(candidate){
+  return Boolean(
+    candidate &&
+    candidate.version==="0.6" &&
+    Array.isArray(candidate.players) &&
+    candidate.players.length===4 &&
+    candidate.players.every(player=>Array.isArray(player.hand)) &&
+    Array.isArray(candidate.wall) &&
+    Array.isArray(candidate.discards)
+  );
+}
+
+if(!isCompatibleState(state)){
+  clearState();
+  state=createInitialState();
+}
 
 const ruleExchange=document.getElementById("ruleExchange");
 const ruleGang=document.getElementById("ruleGang");
@@ -24,6 +41,21 @@ ruleGang.addEventListener("change",()=>{
   rules.gangRain=ruleGang.checked;
   saveRules(rules);
 });
+
+function createInitialState(){
+  return {
+    version:"0.6",
+    phase:"准备",
+    wall:[],
+    players:names.map(name=>({name,hand:[],won:false,melds:[]})),
+    turn:0,
+    discards:[],
+    logs:["欢迎来到 Nocturne Mahjong。"],
+    drawnTileId:null,
+    selectedTileIndex:null,
+    activeRules:{...rules}
+  };
+}
 
 function createWall(){
   const wall=[];
@@ -42,21 +74,6 @@ function createWall(){
   }
 
   return wall;
-}
-
-function createInitialState(){
-  return {
-    version:"0.3",
-    phase:"准备",
-    wall:[],
-    players:names.map(name=>({name,hand:[],won:false,melds:[]})),
-    turn:0,
-    discards:[],
-    logs:["欢迎来到 Nocturne Mahjong。"],
-    drawnTileId:null,
-    selectedTileIndex:null,
-    activeRules:{...rules}
-  };
 }
 
 function sortHand(hand){
@@ -80,7 +97,7 @@ function newGame(){
   players.forEach(player=>sortHand(player.hand));
 
   state={
-    version:"0.3",
+    version:"0.6",
     phase:rules.exchangeThree?"换三张":"摸牌",
     wall,
     players,
@@ -137,10 +154,10 @@ document.getElementById("exchangeConfirm").addEventListener("click",()=>{
   for(let playerIndex=1;playerIndex<4;playerIndex++){
     const hand=state.players[playerIndex].hand;
     const chosen=chooseExchangeTiles(hand);
-    const cards=chosen
+
+    allOutgoing[playerIndex]=chosen
       .sort((a,b)=>b-a)
       .map(index=>hand.splice(index,1)[0]);
-    allOutgoing[playerIndex]=cards;
   }
 
   for(let playerIndex=0;playerIndex<4;playerIndex++){
@@ -157,20 +174,16 @@ document.getElementById("exchangeConfirm").addEventListener("click",()=>{
 });
 
 function chooseExchangeTiles(hand){
-  const scored=hand.map((tile,index)=>({
-    index,
-    score:keepScore(tile,hand)
-  }));
-
-  scored.sort((a,b)=>a.score-b.score);
-  return scored.slice(0,3).map(item=>item.index);
+  return hand
+    .map((tile,index)=>({index,score:keepScore(tile,hand)}))
+    .sort((a,b)=>a.score-b.score)
+    .slice(0,3)
+    .map(item=>item.index);
 }
 
 function scheduleAutoDraw(){
   clearTimeout(aiTimer);
-
   if(state.phase!=="摸牌")return;
-
   aiTimer=setTimeout(autoDraw,state.turn===0?260:420);
 }
 
@@ -214,7 +227,6 @@ function discard(tileIndex){
   state.logs.push(`你打出 ${tileName(tile)}。`);
   state.drawnTileId=null;
   state.selectedTileIndex=null;
-
   nextTurn();
 }
 
@@ -229,18 +241,13 @@ function aiDiscard(){
   state.logs.push(`${player.name}打出 ${tileName(tile)}。`);
   state.drawnTileId=null;
   state.selectedTileIndex=null;
-
   nextTurn();
 }
 
 function chooseDiscard(hand){
-  const scores=hand.map((tile,index)=>({
-    index,
-    score:keepScore(tile,hand)
-  }));
-
-  scores.sort((a,b)=>a.score-b.score);
-  return scores[0].index;
+  return hand
+    .map((tile,index)=>({index,score:keepScore(tile,hand)}))
+    .sort((a,b)=>a.score-b.score)[0].index;
 }
 
 function keepScore(tile,hand){
@@ -283,10 +290,14 @@ document.addEventListener("visibilitychange",()=>{
 });
 window.addEventListener("pagehide",()=>saveState(state));
 
-commit();
+if(state.phase==="准备"||state.players.every(player=>player.hand.length===0)){
+  newGame();
+}else{
+  commit();
 
-if(state.phase==="摸牌"){
-  scheduleAutoDraw();
-}else if(state.phase==="出牌"&&state.turn!==0){
-  aiTimer=setTimeout(aiDiscard,500);
+  if(state.phase==="摸牌"){
+    scheduleAutoDraw();
+  }else if(state.phase==="出牌"&&state.turn!==0){
+    aiTimer=setTimeout(aiDiscard,500);
+  }
 }
