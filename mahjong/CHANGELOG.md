@@ -1,3 +1,16 @@
+# v0.14.30
+
+## 布局
+- 普通手机横屏独立 `compact-landscape`：`@media (orientation: landscape) and (max-height: 600px)`
+- 牌桌按比例分区：上家 0–22% / 上家副露 22–34% / 中央 34–64% / 自己副露 64–76% / 自己手牌 76–100%
+- 删除旧 `@media(max-height:599px) and (min-aspect-ratio:1/1)`，竖屏 `max-width:600` 限定 `orientation:portrait`，平板 `min-height:601` 与横屏互斥
+
+## 修复
+- 荣耀浏览器等 Chrome 内核横屏：统一 viewport 高度兼容（`100vh` / `100dvh` / `-webkit-fill-available` fallback）
+- 补全 `html,body{height:100%;min-height:100%}`；`100dvh` 相关高度增加 `100vh` 回退
+
+---
+
 # v0.14.28
 
 ## 调整

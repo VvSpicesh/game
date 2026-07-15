@@ -1,5 +1,20 @@
 # RELEASE NOTES — Nocturne Mahjong
 
+## v0.14.30
+
+**日期**：2026-07-15  
+**Service Worker 缓存**：`nocturne-games-v33`
+
+### 布局
+- 普通手机横屏独立 compact-landscape（`orientation:landscape` + `max-height:600px`），五段百分比分区，避免副露/弃牌/中央计数器重叠
+- 清理冲突的横屏/矮屏 media query；竖屏与平板断点互斥
+
+### 修复
+- 荣耀浏览器等横屏 viewport 高度兼容：`100vh` → `100dvh` → `-webkit-fill-available` fallback
+- 补全 `html,body` 的 `height/min-height:100%`
+
+---
+
 ## v0.14.28
 
 **日期**：2026-07-15  

@@ -1,5 +1,19 @@
 # RELEASE NOTES
 
+## Mahjong v0.14.30
+
+**Service Worker**：`nocturne-games-v33`
+
+### 布局
+- 普通手机横屏独立 compact-landscape 五段分区，清理冲突 media query
+
+### 修复
+- 荣耀浏览器横屏 viewport 高度兼容（`100vh` / `100dvh` / `-webkit-fill-available`）
+
+完整稿：`mahjong/RELEASE_NOTES.md`。变更明细：`mahjong/CHANGELOG.md`。
+
+---
+
 ## Mahjong v0.14.28
 
 **Service Worker**：`nocturne-games-v31`
