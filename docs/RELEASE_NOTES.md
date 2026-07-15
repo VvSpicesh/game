@@ -1,5 +1,17 @@
 # RELEASE NOTES
 
+## Mahjong v0.14.28
+
+**Service Worker**：`nocturne-games-v31`
+
+### 调整
+- 自己副露回到座位外侧，紧贴座位上沿线
+- 上家/下家座位底边与自己座位上沿线齐平，间隔对称对家
+
+完整稿：`mahjong/RELEASE_NOTES.md`。变更明细：`mahjong/CHANGELOG.md`。
+
+---
+
 ## Mahjong v0.14.26
 
 **Service Worker**：`nocturne-games-v29`

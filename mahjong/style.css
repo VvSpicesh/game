@@ -164,15 +164,19 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   min-width:0;
   box-sizing:border-box
 }
-/* 左/右家：桌面中部两侧，夹在上下安全带之间，不得侵入底栏 */
+/* 左/右家：夹在对家安全带与自己座位上线之间；下间隔 = 上间隔（对称对家 +6px） */
 .seat-left{
-  left:2px;top:calc(var(--band-top) + 6px);bottom:calc(var(--band-bottom) + 6px);
+  left:2px;
+  top:calc(var(--band-top) + 6px);
+  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 6px);
   width:var(--band-side);transform:none;
   display:flex;flex-direction:column;padding:3px;
   overflow:visible;z-index:6
 }
 .seat-right{
-  right:2px;top:calc(var(--band-top) + 6px);bottom:calc(var(--band-bottom) + 6px);
+  right:2px;
+  top:calc(var(--band-top) + 6px);
+  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 6px);
   width:var(--band-side);transform:none;
   display:flex;flex-direction:column;padding:3px;
   overflow:visible;z-index:6
@@ -619,7 +623,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .seat-right{
     z-index:6;
     top:calc(var(--band-top) + 2px);
-    bottom:calc(var(--band-bottom) + 2px);
+    bottom:calc(var(--self-hand-band) + 2px);
     width:var(--band-side);
     min-width:0;
     overflow:hidden;
@@ -636,10 +640,12 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   }
   .seat-bottom .hand{padding-top:4px;gap:1px}
   .meld-bottom{
-    z-index:18;
-    bottom:calc(var(--self-hand-band) + 2px);
-    height:var(--self-meld-band);
-    max-height:var(--self-meld-band)
+    z-index:9;
+    bottom:calc(var(--self-hand-band) + var(--meld-gap) + 2px);
+    height:auto;
+    max-height:var(--self-meld-band);
+    align-content:flex-end;
+    align-items:flex-end
   }
   .seat-left .seat-label,
   .seat-right .seat-label,
@@ -658,10 +664,14 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .meld-left,.meld-right{
     z-index:8;
     top:calc(var(--band-top) + 4px);
-    bottom:calc(var(--band-bottom) + 8px);
-    width:var(--meld-rail)
+    bottom:calc(var(--self-hand-band) + 4px);
+    width:var(--meld-rail);
+    justify-content:flex-start;
+    padding-top:clamp(4px,3%,12px);
+    padding-bottom:0
   }
-  .meld-top,.meld-bottom{z-index:8}
+  .meld-top{z-index:8}
+  .meld-bottom{z-index:9}
   .discard-zone{z-index:4}
   .action-dock{
     z-index:30!important;
@@ -988,13 +998,13 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .meld-bottom{
   left:var(--discard-inset);
   right:var(--discard-inset);
-  /* 坐在手牌安全带之上；高度固定为副露安全带，不进入手牌区 */
-  bottom:calc(var(--self-hand-band) + var(--meld-gap));
-  height:var(--self-meld-band);
+  /* 座位盒外侧、紧贴座位顶边（与左右家副露在座位外一致，勿叠入自己座位） */
+  bottom:calc(var(--self-hand-band) + var(--meld-gap) + max(4px,env(safe-area-inset-bottom,0px)));
+  height:auto;
   max-height:var(--self-meld-band);
   justify-content:center;
-  align-content:center;
-  align-items:center;
+  align-content:flex-end;
+  align-items:flex-end;
   flex-wrap:wrap;
   gap:6px;
   overflow:hidden;
@@ -1008,11 +1018,11 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   flex:0 0 auto;
 }
 
-/* 左右副露：在座位与桌心之间，上半段排布，避开自家底栏手牌 */
+/* 左右副露：上下止点对称对家（top = band-top+10 / bottom = self-hand-band+safe+10） */
 .meld-left,
 .meld-right{
   top:calc(var(--band-top) + 10px);
-  bottom:calc(var(--band-bottom) + 18px);
+  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 10px);
   width:var(--meld-rail);
   max-height:none;
   transform:none;
@@ -1022,6 +1032,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   align-items:center;
   justify-content:flex-start;
   padding-top:clamp(8px,4%,28px);
+  padding-bottom:0;
   gap:6px;
   overflow:visible;
   z-index:9;
@@ -1262,8 +1273,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   }
 
   .meld-bottom{
-    bottom:calc(var(--self-hand-band) + var(--meld-gap));
-    height:var(--self-meld-band);
+    bottom:calc(var(--self-hand-band) + var(--meld-gap) + max(4px,env(safe-area-inset-bottom,0px)));
+    height:auto;
     max-height:var(--self-meld-band);
     z-index:9
   }
