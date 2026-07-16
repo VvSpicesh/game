@@ -1,5 +1,16 @@
 # RELEASE NOTES
 
+## Mahjong v0.14.32-speech2 + Chess audio
+
+**Service Worker**：`nocturne-games-v36`
+
+- 麻将：Android Chrome 语音包等待 / 重试（小新平板）
+- 象棋：走子 thrump、将军登登（Web Audio）
+
+完整稿：`mahjong/RELEASE_NOTES.md`。变更明细：`mahjong/CHANGELOG.md`。
+
+---
+
 ## Mahjong v0.14.32-speech1
 
 **Service Worker**：`nocturne-games-v35`

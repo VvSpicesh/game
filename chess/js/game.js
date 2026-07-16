@@ -227,6 +227,12 @@
       difficultySelect.value = this.difficulty;
       difficultySelect.disabled = this.mode !== "ai";
 
+      const unlockAudio = () => {
+        window.ChessAudio?.init();
+        document.removeEventListener("pointerdown", unlockAudio);
+      };
+      document.addEventListener("pointerdown", unlockAudio, { once: true });
+
       modeSelect.addEventListener("change", () => {
         this.mode = modeSelect.value;
         difficultySelect.disabled = this.mode !== "ai";
@@ -462,6 +468,17 @@
       this.notation.push(notation);
       this.selected = null;
       this.legalMoves = [];
+
+      if (window.ChessAudio) {
+        ChessAudio.init();
+        ChessAudio.playMove(Boolean(result.captured) || Boolean(move.enPassant));
+        if (this.gameStatus === "checkmate") {
+          setTimeout(() => ChessAudio.playCheckmate(), 90);
+        } else if (this.gameStatus === "check") {
+          setTimeout(() => ChessAudio.playCheck(), 90);
+        }
+      }
+
       this.render();
       this.persist("move");
       this.maybeScheduleAi();

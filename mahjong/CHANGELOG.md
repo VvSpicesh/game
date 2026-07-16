@@ -7,6 +7,21 @@
 
 ---
 
+# v0.14.32-speech2
+
+## 语音（Android Chrome / 小新平板）
+- 等待 `voiceschanged` / 轮询 `getVoices`，避免列表为空时 `speak` 挂死
+- 取消「空 utterance + 立刻 cancel」预热（部分机型会卡死引擎）
+- `cancel` 后延迟再播；调试面板增加等待语音包、二次重试、正式 `speakPhrase` 对照
+
+## 象棋
+- 纳入走子 thrump / 将军登登 Web Audio（`chess/js/audio.js`）
+
+## 平台
+- Service Worker：`nocturne-games-v36`
+
+---
+
 # v0.14.32
 
 ## 功能

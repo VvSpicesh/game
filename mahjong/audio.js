@@ -24,6 +24,7 @@ let unlocked=false;
 let supported=typeof globalThis!=="undefined"&&"speechSynthesis" in globalThis;
 let cachedVoice=null;
 let voicesHooked=false;
+let voicesReadyPromise=null;
 let audioCtx=null;
 let diceMaster=null;
 let diceGen=0;
@@ -52,20 +53,72 @@ function persistEnabled(){
   }catch{/* ignore */}
 }
 
+function listVoices(){
+  if(!supported)return [];
+  try{
+    return speechSynthesis.getVoices?.()||[];
+  }catch{
+    return [];
+  }
+}
+
 function pickVoice(){
   if(!supported)return null;
   try{
-    const list=speechSynthesis.getVoices?.()||[];
+    const list=listVoices();
     if(!list.length)return cachedVoice;
     const zh=
+      list.find(v=>/^zh-CN/i.test(v.lang)&&!/online|network|google/i.test(v.name||""))||
       list.find(v=>/^zh-CN/i.test(v.lang))||
       list.find(v=>/^zh/i.test(v.lang))||
-      list.find(v=>/chinese|中文|汉语/i.test(v.name||""));
+      list.find(v=>/chinese|中文|汉语|普通话/i.test(v.name||""))||
+      list.find(v=>v.default)||
+      list[0];
     cachedVoice=zh||null;
     return cachedVoice;
   }catch{
     return null;
   }
+}
+
+/**
+ * Android Chrome：getVoices() 常先返回 []，需等 voiceschanged 或轮询。
+ * @param {number} [timeoutMs=4000]
+ * @returns {Promise<SpeechSynthesisVoice[]>}
+ */
+export function waitForVoices(timeoutMs=4000){
+  if(!supported)return Promise.resolve([]);
+  const now=listVoices();
+  if(now.length){
+    pickVoice();
+    return Promise.resolve(now);
+  }
+  if(voicesReadyPromise)return voicesReadyPromise;
+  voicesReadyPromise=new Promise(resolve=>{
+    let settled=false;
+    const finish=()=>{
+      if(settled)return;
+      settled=true;
+      const list=listVoices();
+      pickVoice();
+      resolve(list);
+      setTimeout(()=>{voicesReadyPromise=null;},0);
+    };
+    try{
+      speechSynthesis.addEventListener?.("voiceschanged",finish,{once:true});
+    }catch{/* ignore */}
+    const started=Date.now();
+    const tick=()=>{
+      if(settled)return;
+      if(listVoices().length||Date.now()-started>=timeoutMs){
+        finish();
+        return;
+      }
+      setTimeout(tick,80);
+    };
+    setTimeout(tick,40);
+  });
+  return voicesReadyPromise;
 }
 
 function hookVoices(){
@@ -77,6 +130,14 @@ function hookVoices(){
       pickVoice();
     });
     pickVoice();
+    waitForVoices(4000);
+  }catch{/* ignore */}
+}
+
+function resumeSpeechEngine(){
+  if(!supported)return;
+  try{
+    if(speechSynthesis.paused)speechSynthesis.resume();
   }catch{/* ignore */}
 }
 
@@ -175,15 +236,9 @@ export function initAudio(){
   unlocked=true;
   if(supported){
     hookVoices();
-    try{
-      const warm=new SpeechSynthesisUtterance(" ");
-      warm.volume=0;
-      warm.rate=1;
-      warm.lang="zh-CN";
-      speechSynthesis.speak(warm);
-      speechSynthesis.cancel();
-      pickVoice();
-    }catch{/* ignore */}
+    resumeSpeechEngine();
+    /* 勿再 speak+立刻 cancel：部分 Android Chrome 会把引擎卡死，后续无 onstart */
+    waitForVoices(4000);
   }
   const ctx=ensureAudioCtx();
   if(ctx){
@@ -232,6 +287,32 @@ export function stopSpeech(){
   }
 }
 
+function speakUtterance(phrase,gen,finish){
+  resumeSpeechEngine();
+  const utter=new SpeechSynthesisUtterance(phrase);
+  utter.lang="zh-CN";
+  utter.rate=1.05;
+  utter.pitch=1;
+  utter.volume=1;
+  const voice=pickVoice();
+  if(voice){
+    utter.voice=voice;
+    if(voice.lang)utter.lang=voice.lang;
+  }
+  utter.onend=finish;
+  utter.onerror=finish;
+  speechSynthesis.speak(utter);
+  /* 兜底：个别环境不触发 onend；Android 有时 speaking 一直 false */
+  const expectMs=Math.min(4500,Math.max(800,phrase.length*360));
+  setTimeout(()=>{
+    if(gen!==speechGen)return;
+    try{
+      if(speechSynthesis.speaking||speechSynthesis.pending)return;
+    }catch{/* ignore */}
+    finish();
+  },expectMs);
+}
+
 function flushSpeechQueue(){
   if(speechSpeaking)return;
   if(!supported||!enabled||!unlocked){
@@ -251,29 +332,27 @@ function flushSpeechQueue(){
     setTimeout(()=>{
       if(gen!==speechGen)return;
       flushSpeechQueue();
-    },50);
+    },80);
   };
-  try{
-    const utter=new SpeechSynthesisUtterance(phrase);
-    utter.lang="zh-CN";
-    utter.rate=1.05;
-    utter.pitch=1;
-    utter.volume=1;
-    const voice=pickVoice();
-    if(voice)utter.voice=voice;
-    utter.onend=finish;
-    utter.onerror=finish;
-    speechSynthesis.speak(utter);
-    /* 兜底：个别环境不触发 onend */
-    const expectMs=Math.min(4000,Math.max(600,phrase.length*320));
-    setTimeout(()=>{
-      if(finished||gen!==speechGen)return;
-      if(speechSynthesis.speaking||speechSynthesis.pending)return;
+
+  waitForVoices(3500).then(voices=>{
+    if(gen!==speechGen)return;
+    try{
+      /* 无语音包时仍尝试 speak（靠 lang=zh-CN）；有包则绑定本地中文 */
+      if(!voices.length){
+        /* 再等一小拍：部分机型手势后才注入 voice */
+        setTimeout(()=>{
+          if(gen!==speechGen)return;
+          pickVoice();
+          try{speakUtterance(phrase,gen,finish);}catch{finish();}
+        },120);
+        return;
+      }
+      speakUtterance(phrase,gen,finish);
+    }catch{
       finish();
-    },expectMs);
-  }catch{
-    finish();
-  }
+    }
+  });
 }
 
 function enqueueInterrupt(phrase){
@@ -282,13 +361,17 @@ function enqueueInterrupt(phrase){
   speechQueue=[];
   speechSpeaking=false;
   try{
-    if(speechSynthesis.speaking||speechSynthesis.pending)speechSynthesis.cancel();
+    if(speechSynthesis.speaking||speechSynthesis.pending||speechSynthesis.paused){
+      speechSynthesis.cancel();
+    }
   }catch{/* ignore */}
   speechQueue.push(phrase);
+  /* Android Chrome：cancel 后立刻 speak 常无回调，留空窗再播 */
   setTimeout(()=>{
     if(gen!==speechGen)return;
+    resumeSpeechEngine();
     flushSpeechQueue();
-  },20);
+  },120);
 }
 
 function enqueueFollow(phrase){

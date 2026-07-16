@@ -34,11 +34,13 @@ import {
   speakTile,
   speakAction,
   speakWin,
+  speakPhrase,
   stopSpeech,
   playDiceRattle,
   playDealRound,
   armAudioGestureUnlock,
-  waitUntilSpeechIdle
+  waitUntilSpeechIdle,
+  waitForVoices
 } from "./audio.js";
 
 function snapshotRules(source=rules){
@@ -1365,7 +1367,7 @@ function openNamesModal(){
 
 document.getElementById("editNamesBtn")?.addEventListener("click",openNamesModal);
 
-/** 临时：排查部分 Android Chrome 无声音；不走 audio.js 播音队列 */
+/** 临时：排查部分 Android Chrome 无声音 */
 const speechDebugModal=document.getElementById("speechDebugModal");
 const speechDebugOut=document.getElementById("speechDebugOut");
 let speechDebugVoicesHooked=false;
@@ -1380,7 +1382,7 @@ function speechDebugAppend(line){
 
 function speechDebugFormatVoices(list){
   if(!list||!list.length)return "(空列表)";
-  return list.map((v,i)=>`  [${i}] name=${v.name} | lang=${v.lang} | default=${!!v.default}`).join("\n");
+  return list.map((v,i)=>`  [${i}] name=${v.name} | lang=${v.lang} | default=${!!v.default} | local=${v.localService!==false}`).join("\n");
 }
 
 function speechDebugListVoices(label){
@@ -1395,9 +1397,65 @@ function speechDebugListVoices(label){
   }
 }
 
-function runSpeechSynthesisDebug(){
+function speechDebugPickZh(list){
+  return (
+    list.find(v=>/^zh-CN/i.test(v.lang)&&!/online|network|google/i.test(v.name||""))||
+    list.find(v=>/^zh-CN/i.test(v.lang))||
+    list.find(v=>/^zh/i.test(v.lang))||
+    list.find(v=>/chinese|中文|汉语|普通话/i.test(v.name||""))||
+    list[0]||
+    null
+  );
+}
+
+function speechDebugSpeakOnce(text,voice,label){
+  return new Promise(resolve=>{
+    try{
+      try{if(speechSynthesis.paused)speechSynthesis.resume();}catch{/* ignore */}
+      const utter=new SpeechSynthesisUtterance(text);
+      utter.lang=voice?.lang||"zh-CN";
+      utter.volume=1;
+      utter.rate=1;
+      if(voice)utter.voice=voice;
+      let done=false;
+      const finish=(msg)=>{
+        if(done)return;
+        done=true;
+        speechDebugAppend(msg);
+        resolve(msg);
+      };
+      utter.onstart=()=>{
+        try{
+          finish(`${label} onstart speaking=${speechSynthesis.speaking} pending=${speechSynthesis.pending}`);
+        }catch{
+          finish(`${label} onstart`);
+        }
+      };
+      utter.onend=()=>finish(`${label} onend`);
+      utter.onerror=(ev)=>finish(`${label} onerror error=${ev?.error||"(unknown)"}`);
+      speechSynthesis.speak(utter);
+      speechDebugAppend(`${label} speak() 已调用 voice=${voice?voice.name:"(none)"} lang=${utter.lang}`);
+      setTimeout(()=>{
+        if(done)return;
+        try{
+          finish(`${label} 超时(2.5s) speaking=${speechSynthesis.speaking} pending=${speechSynthesis.pending} paused=${speechSynthesis.paused}`);
+        }catch{
+          finish(`${label} 超时(2.5s)`);
+        }
+      },2500);
+    }catch(err){
+      speechDebugAppend(`${label} speak 抛错: ${err?.message||err}`);
+      resolve("throw");
+    }
+  });
+}
+
+async function runSpeechSynthesisDebug(){
   if(speechDebugOut)speechDebugOut.textContent="";
   speechDebugModal?.classList.add("show");
+
+  /* 手势内先解锁正式播音路径 */
+  try{initAudio();}catch{/* ignore */}
 
   const exists=typeof globalThis!=="undefined"&&"speechSynthesis" in globalThis;
   speechDebugAppend(`1. speechSynthesis 是否存在: ${exists}`);
@@ -1427,26 +1485,40 @@ function runSpeechSynthesisDebug(){
     }
   }
 
-  speechDebugAppend('3. 测试播放 speechSynthesis.speak(new SpeechSynthesisUtterance("五万"))');
+  speechDebugAppend("2b. 等待语音列表（最多 4s，轮询 + voiceschanged）…");
+  let voices=[];
   try{
-    const utter=new SpeechSynthesisUtterance("五万");
-    utter.lang="zh-CN";
-    utter.onstart=()=>{
-      speechDebugAppend("4. onstart");
-      try{
-        speechDebugAppend(`   speaking=${speechSynthesis.speaking} pending=${speechSynthesis.pending}`);
-      }catch{/* ignore */}
-    };
-    utter.onend=()=>{
-      speechDebugAppend("4. onend");
-    };
-    utter.onerror=(ev)=>{
-      speechDebugAppend(`4. onerror error=${ev?.error||"(unknown)"} type=${ev?.type||""}`);
-    };
-    speechSynthesis.speak(utter);
-    speechDebugAppend("   speak() 已调用（等待 onstart / onend / onerror）");
+    voices=await waitForVoices(4000);
   }catch(err){
-    speechDebugAppend(`3. speak() 抛错: ${err?.message||err}`);
+    speechDebugAppend(`waitForVoices 异常: ${err?.message||err}`);
+    voices=speechSynthesis.getVoices()||[];
+  }
+  speechDebugListVoices("   [等待后]");
+  const zh=speechDebugPickZh(voices);
+  speechDebugAppend(`   选用: ${zh?`${zh.name} / ${zh.lang}`:"(无，仅 lang=zh-CN)"}`);
+
+  speechDebugAppend('3. 测试播放 "五万"（先 cancel 空窗，再 speak）');
+  try{
+    try{speechSynthesis.cancel();}catch{/* ignore */}
+    await new Promise(r=>setTimeout(r,150));
+    try{if(speechSynthesis.paused)speechSynthesis.resume();}catch{/* ignore */}
+    const r1=await speechDebugSpeakOnce("五万",zh,"   [第1次]");
+    if(/超时|onerror/.test(r1)){
+      speechDebugAppend("3b. 第1次失败，再试一次（部分 Android 需二次触发）");
+      try{speechSynthesis.cancel();}catch{/* ignore */}
+      await new Promise(r=>setTimeout(r,200));
+      await speechDebugSpeakOnce("五万",zh,"   [第2次]");
+    }
+  }catch(err){
+    speechDebugAppend(`3. 流程异常: ${err?.message||err}`);
+  }
+
+  speechDebugAppend("4. 通过 audio.js speakPhrase(\"五万\") 再测正式路径");
+  try{
+    speakPhrase("五万");
+    speechDebugAppend("   speakPhrase 已调用（听是否出声；无单独 onstart 日志）");
+  }catch(err){
+    speechDebugAppend(`   speakPhrase 异常: ${err?.message||err}`);
   }
 }
 

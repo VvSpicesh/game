@@ -1,5 +1,16 @@
 # RELEASE NOTES — Nocturne Mahjong
 
+## v0.14.32-speech2
+
+**日期**：2026-07-16  
+**Service Worker 缓存**：`nocturne-games-v36`
+
+### 语音（Android / 小新平板）
+- 等待 `getVoices` 后再 speak；去掉有害预热；调试面板二次重试 + `speakPhrase` 对照
+- 象棋纳入走子 / 将军 Web Audio
+
+---
+
 ## v0.14.32-speech1
 
 **日期**：2026-07-16  

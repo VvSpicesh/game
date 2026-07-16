@@ -1,5 +1,5 @@
 /* Nocturne Games Service Worker — bump CACHE when precache list or SW logic changes */
-const CACHE = "nocturne-games-v35";
+const CACHE = "nocturne-games-v36";
 
 /** Absolute URLs relative to this SW script (repo root under GitHub Pages). */
 const PRECACHE = [
@@ -17,14 +17,15 @@ const PRECACHE = [
   "./chess/css/board.css?v=stable11",
   "./chess/css/themes.css?v=stable11",
   "./chess/css/ui.css?v=stable11",
-  "./chess/js/engine.js?v=stable11",
-  "./chess/js/storage.js?v=stable11",
-  "./chess/js/renderer.js?v=stable11",
-  "./chess/js/ai.js?v=stable11",
-  "./chess/js/game.js?v=stable11",
+  "./chess/js/engine.js?v=stable13",
+  "./chess/js/storage.js?v=stable13",
+  "./chess/js/renderer.js?v=stable13",
+  "./chess/js/ai.js?v=stable13",
+  "./chess/js/audio.js?v=stable13",
+  "./chess/js/game.js?v=stable13",
   "./mahjong/index.html",
-  "./mahjong/style.css?v=0.14.32-speech1",
-  "./mahjong/game.js?v=0.14.32-speech1",
+  "./mahjong/style.css?v=0.14.32-speech2",
+  "./mahjong/game.js?v=0.14.32-speech2",
   "./mahjong/render.js?v=0.14.32",
   "./mahjong/tiles.js?v=0.14.24",
   "./mahjong/rules-guard.js?v=0.14.24",
@@ -34,7 +35,7 @@ const PRECACHE = [
   "./mahjong/config.js?v=0.14.32",
   "./mahjong/hu.js?v=0.14.32",
   "./mahjong/score.js?v=0.14.32",
-  "./mahjong/audio.js?v=0.14.32"
+  "./mahjong/audio.js?v=0.14.32-speech2"
 ];
 
 self.addEventListener("install", (event) => {
