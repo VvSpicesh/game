@@ -41,7 +41,8 @@ import {
   armAudioGestureUnlock,
   waitUntilSpeechIdle,
   waitForVoices,
-  isSpeechAvailable
+  isSpeechAvailable,
+  isLocalVoiceEnabled
 } from "./audio.js";
 
 function snapshotRules(source=rules){
@@ -1497,35 +1498,35 @@ async function runSpeechSynthesisDebug(){
   speechDebugListVoices("   [等待后]");
   const zh=speechDebugPickZh(voices);
   speechDebugAppend(`   选用: ${zh?`${zh.name} / ${zh.lang}`:"(无)"}`);
-  speechDebugAppend(`   audio.js isSpeechAvailable=${isSpeechAvailable()}`);
+  speechDebugAppend(`   audio.js isSpeechAvailable=${isSpeechAvailable()} localVoice=${isLocalVoiceEnabled()}`);
 
   if(!voices.length){
-    speechDebugAppend("结论：Chrome 拿不到任何 TTS 语音包（与系统是否安装语音无关时常见）。");
-    speechDebugAppend("正式路径将跳过牌名播报，避免卡死/拖慢发牌；骰子与发牌音效仍可用。");
-    speechDebugAppend("可试：设置 → 无障碍 → 文字转语音 → 首选引擎选「Google 语音合成」并下载中文；或换系统浏览器。");
-    return;
-  }
-
-  speechDebugAppend('3. 测试播放 "五万"');
-  try{
-    try{speechSynthesis.cancel();}catch{/* ignore */}
-    await new Promise(r=>setTimeout(r,120));
-    try{if(speechSynthesis.paused)speechSynthesis.resume();}catch{/* ignore */}
-    const r1=await speechDebugSpeakOnce("五万",zh,"   [第1次]");
-    if(/超时|onerror/.test(r1)){
-      speechDebugAppend("3b. 再试一次");
+    speechDebugAppend("系统 TTS：无语音包（本机常见）。正式报牌改走本地 mp3。");
+  }else{
+    speechDebugAppend('3. 系统 TTS 试播 "五万"');
+    try{
       try{speechSynthesis.cancel();}catch{/* ignore */}
-      await new Promise(r=>setTimeout(r,160));
-      await speechDebugSpeakOnce("五万",zh,"   [第2次]");
+      await new Promise(r=>setTimeout(r,120));
+      try{if(speechSynthesis.paused)speechSynthesis.resume();}catch{/* ignore */}
+      const r1=await speechDebugSpeakOnce("五万",zh,"   [第1次]");
+      if(/超时|onerror/.test(r1)){
+        speechDebugAppend("3b. 再试一次");
+        try{speechSynthesis.cancel();}catch{/* ignore */}
+        await new Promise(r=>setTimeout(r,160));
+        await speechDebugSpeakOnce("五万",zh,"   [第2次]");
+      }
+    }catch(err){
+      speechDebugAppend(`3. 流程异常: ${err?.message||err}`);
     }
-  }catch(err){
-    speechDebugAppend(`3. 流程异常: ${err?.message||err}`);
   }
 
-  speechDebugAppend("4. audio.js speakPhrase(\"五万\")");
+  speechDebugAppend("4. 本地语音 speakPhrase(\"五万\") — 应能听到预录");
   try{
+    initAudio();
     speakPhrase("五万");
     speechDebugAppend(`   speakPhrase 已调用；isSpeechAvailable=${isSpeechAvailable()}`);
+    await waitUntilSpeechIdle(3000);
+    speechDebugAppend("   本地播报队列已结束（若仍无声检查媒体音量）");
   }catch(err){
     speechDebugAppend(`   speakPhrase 异常: ${err?.message||err}`);
   }

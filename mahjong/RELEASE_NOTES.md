@@ -1,5 +1,15 @@
 # RELEASE NOTES — Nocturne Mahjong
 
+## v0.14.33
+
+**日期**：2026-07-16  
+**Service Worker 缓存**：`nocturne-games-v38`
+
+### 语音
+- 本地预录报牌（牌名、碰杠胡、胡牌说明片段拼接）；平板无系统 TTS 也可出声
+
+---
+
 ## v0.14.32-speech3
 
 **日期**：2026-07-16  

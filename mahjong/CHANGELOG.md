@@ -1,4 +1,16 @@
-﻿# v0.14.32-speech3
+﻿# v0.14.33
+
+## 语音
+- **本地预录 mp3**（`sounds/voice/`）：牌名 / 碰杠胡 / 座位 / 放炮 / 常用牌型，不依赖系统 TTS
+- 无 TTS 的 Android Chrome（如小新平板）可正常报牌；系统 TTS 仅作回退
+- 生成脚本：`mahjong/tools/gen_voice_clips.py`
+
+## 平台
+- Service Worker：`nocturne-games-v38`（预缓存语音文件；静态资源含 `.mp3`）
+
+---
+
+# v0.14.32-speech3
 
 ## 语音（Android Chrome / 小新平板）
 - `getVoices` 长期为空或 `speak` 无 onstart：本会话标记 TTS 不可用，跳过播报，避免发牌被 `waitUntilSpeechIdle` 拖慢

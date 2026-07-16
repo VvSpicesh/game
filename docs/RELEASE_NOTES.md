@@ -1,5 +1,15 @@
 # RELEASE NOTES
 
+## Mahjong v0.14.33
+
+**Service Worker**：`nocturne-games-v38`
+
+- 本地预录报牌（不依赖系统 TTS）
+
+完整稿：`mahjong/RELEASE_NOTES.md`。变更明细：`mahjong/CHANGELOG.md`。
+
+---
+
 ## Mahjong v0.14.32-speech3
 
 **Service Worker**：`nocturne-games-v37`

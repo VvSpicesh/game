@@ -1,5 +1,5 @@
 /* Nocturne Games Service Worker — bump CACHE when precache list or SW logic changes */
-const CACHE = "nocturne-games-v37";
+const CACHE = "nocturne-games-v38";
 
 /** Absolute URLs relative to this SW script (repo root under GitHub Pages). */
 const PRECACHE = [
@@ -24,8 +24,8 @@ const PRECACHE = [
   "./chess/js/audio.js?v=stable13",
   "./chess/js/game.js?v=stable13",
   "./mahjong/index.html",
-  "./mahjong/style.css?v=0.14.32-speech3",
-  "./mahjong/game.js?v=0.14.32-speech3",
+  "./mahjong/style.css?v=0.14.33",
+  "./mahjong/game.js?v=0.14.33",
   "./mahjong/render.js?v=0.14.32",
   "./mahjong/tiles.js?v=0.14.24",
   "./mahjong/rules-guard.js?v=0.14.24",
@@ -35,7 +35,64 @@ const PRECACHE = [
   "./mahjong/config.js?v=0.14.32",
   "./mahjong/hu.js?v=0.14.32",
   "./mahjong/score.js?v=0.14.32",
-  "./mahjong/audio.js?v=0.14.32-speech3"
+  "./mahjong/audio.js?v=0.14.33",
+  "./mahjong/sounds/voice/act_gang.mp3",
+  "./mahjong/sounds/voice/act_gskh.mp3",
+  "./mahjong/sounds/voice/act_hu.mp3",
+  "./mahjong/sounds/voice/act_peng.mp3",
+  "./mahjong/sounds/voice/act_qiangganghu.mp3",
+  "./mahjong/sounds/voice/act_round_end.mp3",
+  "./mahjong/sounds/voice/act_zimo.mp3",
+  "./mahjong/sounds/voice/pat_aqd.mp3",
+  "./mahjong/sounds/voice/pat_ddh.mp3",
+  "./mahjong/sounds/voice/pat_ddz.mp3",
+  "./mahjong/sounds/voice/pat_dy.mp3",
+  "./mahjong/sounds/voice/pat_jd.mp3",
+  "./mahjong/sounds/voice/pat_jgd.mp3",
+  "./mahjong/sounds/voice/pat_lqd.mp3",
+  "./mahjong/sounds/voice/pat_pinghu.mp3",
+  "./mahjong/sounds/voice/pat_qd.mp3",
+  "./mahjong/sounds/voice/pat_qdd.mp3",
+  "./mahjong/sounds/voice/pat_qdy.mp3",
+  "./mahjong/sounds/voice/pat_qld.mp3",
+  "./mahjong/sounds/voice/pat_qqd.mp3",
+  "./mahjong/sounds/voice/pat_qys.mp3",
+  "./mahjong/sounds/voice/pat_qysdd.mp3",
+  "./mahjong/sounds/voice/seat_0.mp3",
+  "./mahjong/sounds/voice/seat_1.mp3",
+  "./mahjong/sounds/voice/seat_2.mp3",
+  "./mahjong/sounds/voice/seat_3.mp3",
+  "./mahjong/sounds/voice/shot_gsp.mp3",
+  "./mahjong/sounds/voice/shot_pao.mp3",
+  "./mahjong/sounds/voice/shot_ypdx.mp3",
+  "./mahjong/sounds/voice/tile_b1.mp3",
+  "./mahjong/sounds/voice/tile_b2.mp3",
+  "./mahjong/sounds/voice/tile_b3.mp3",
+  "./mahjong/sounds/voice/tile_b4.mp3",
+  "./mahjong/sounds/voice/tile_b5.mp3",
+  "./mahjong/sounds/voice/tile_b6.mp3",
+  "./mahjong/sounds/voice/tile_b7.mp3",
+  "./mahjong/sounds/voice/tile_b8.mp3",
+  "./mahjong/sounds/voice/tile_b9.mp3",
+  "./mahjong/sounds/voice/tile_t1.mp3",
+  "./mahjong/sounds/voice/tile_t2.mp3",
+  "./mahjong/sounds/voice/tile_t3.mp3",
+  "./mahjong/sounds/voice/tile_t4.mp3",
+  "./mahjong/sounds/voice/tile_t5.mp3",
+  "./mahjong/sounds/voice/tile_t6.mp3",
+  "./mahjong/sounds/voice/tile_t7.mp3",
+  "./mahjong/sounds/voice/tile_t8.mp3",
+  "./mahjong/sounds/voice/tile_t9.mp3",
+  "./mahjong/sounds/voice/tile_w1.mp3",
+  "./mahjong/sounds/voice/tile_w2.mp3",
+  "./mahjong/sounds/voice/tile_w3.mp3",
+  "./mahjong/sounds/voice/tile_w4.mp3",
+  "./mahjong/sounds/voice/tile_w5.mp3",
+  "./mahjong/sounds/voice/tile_w6.mp3",
+  "./mahjong/sounds/voice/tile_w7.mp3",
+  "./mahjong/sounds/voice/tile_w8.mp3",
+  "./mahjong/sounds/voice/tile_w9.mp3",
+  "./mahjong/sounds/voice/word_qiang.mp3",
 ];
 
 self.addEventListener("install", (event) => {
@@ -93,7 +150,7 @@ function isNavigate(request, url) {
 }
 
 function isStaticAsset(url) {
-  return /\.(?:css|js|mjs|svg|png|webmanifest|ico|woff2?)$/i.test(url.pathname) ||
+  return /\.(?:css|js|mjs|svg|png|mp3|webmanifest|ico|woff2?)$/i.test(url.pathname) ||
     url.pathname.endsWith("manifest.webmanifest");
 }
 
