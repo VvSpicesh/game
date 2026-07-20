@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#0b251b">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Nocturne Mahjong v0.14.49</title>
+  <title>Nocturne Mahjong v0.14.52</title>
   <link rel="manifest" href="../manifest.webmanifest">
   <link rel="icon" href="../assets/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
   <link rel="stylesheet" href="../shared/base.css?v=0.15.2">
-  <link rel="stylesheet" href="./style.css?v=0.14.49">
+  <link rel="stylesheet" href="./style.css?v=0.14.52">
   <script type="importmap">
   {
     "imports": {
@@ -83,15 +83,22 @@
         <div class="seat seat-right" id="seat-3"></div>
         <div class="seat seat-bottom" id="seat-0"></div>
 
-        <div class="meld-zone meld-top" id="meld-2"></div>
-        <div class="meld-zone meld-left" id="meld-1"></div>
-        <div class="meld-zone meld-right" id="meld-3"></div>
-        <div class="meld-zone meld-bottom" id="meld-0"></div>
-
+        <div class="player-band player-band-top">
+          <div class="meld-zone meld-top" id="meld-2"></div>
+        </div>
         <div class="discard-zone discard-top" id="discard-2"></div>
-        <div class="discard-zone discard-left" id="discard-1"></div>
-        <div class="discard-zone discard-right" id="discard-3"></div>
-        <div class="discard-zone discard-bottom" id="discard-0"></div>
+        <div class="player-band player-band-left">
+          <div class="meld-zone meld-left" id="meld-1"></div>
+          <div class="discard-zone discard-left" id="discard-1"></div>
+        </div>
+        <div class="player-band player-band-right">
+          <div class="discard-zone discard-right" id="discard-3"></div>
+          <div class="meld-zone meld-right" id="meld-3"></div>
+        </div>
+        <div class="player-band player-band-bottom">
+          <div class="discard-zone discard-bottom" id="discard-0"></div>
+          <div class="meld-zone meld-bottom" id="meld-0"></div>
+        </div>
 
         <div class="table-center">
           <div class="remaining" id="remaining">108</div>
@@ -284,7 +291,7 @@
 
   <div id="toast" class="toast"></div>
 
-  <script type="module" src="./game.js?v=0.14.49"></script>
+  <script type="module" src="./game.js?v=0.14.52"></script>
   <script type="module" src="../shared/pwa.js"></script>
 </body>
 </html>

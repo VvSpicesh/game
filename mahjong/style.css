@@ -148,6 +148,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   --self-meld-band:max(56px,calc(var(--meld-th) * 2 + 22px));
   --band-bottom:calc(var(--self-hand-band) + var(--self-meld-band) + 8px);
   --meld-gap:4px;
+  --discard-meld-gap:14px;
   --discard-inset:calc(var(--band-side) + var(--meld-rail) + 8px);
   /* 弃牌：相对原版 0.5× 约放大 15% */
   --discard-tile-width:calc(var(--tile-w) * .575);
@@ -424,48 +425,164 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .discard-zone{
   position:absolute;z-index:12;display:flex;flex-wrap:wrap;
   gap:var(--discard-tile-gap);align-content:flex-start;
-  pointer-events:none
+  pointer-events:none;
+  box-sizing:border-box;
+  overflow:hidden
 }
-/* 自己：左→右；对家：右→左且靠近桌心；左右：最新靠近自己 */
+
+/* 四家弃牌+副露分区：band 定界，子区 relative + flex，禁止 absolute 互叠 */
+.player-band{
+  position:absolute;
+  z-index:8;
+  display:flex;
+  pointer-events:none;
+  box-sizing:border-box;
+  min-width:0;
+  min-height:0;
+  gap:var(--discard-meld-gap)
+}
+.player-band .discard-zone,
+.player-band .meld-zone{
+  position:relative;
+  left:auto!important;
+  right:auto!important;
+  top:auto!important;
+  bottom:auto!important;
+  z-index:auto;
+  min-width:0;
+  min-height:0;
+  overflow:hidden;
+  max-height:none!important
+}
+.player-band .meld-zone{
+  flex:0 1 auto
+}
+.player-band .discard-zone{
+  flex:1 1 auto
+}
+
+.player-band-top{
+  left:var(--discard-inset);
+  right:var(--discard-inset);
+  top:calc(var(--band-top) + var(--meld-gap));
+  bottom:auto;
+  height:calc(var(--meld-th) * 2 + 28px);
+  max-height:calc(var(--self-meld-band));
+  flex-direction:column;
+  align-items:stretch
+}
+.player-band-top .meld-top{
+  flex:1 1 auto;
+  max-height:100%;
+  justify-content:center;
+  flex-wrap:wrap;
+  align-content:center
+}
+
+/* 对家弃牌：独立区，位于对家副露下方、朝桌心（不在 band 内便于紧凑横屏居中） */
 .discard-top{
-  top:28%;
-  left:28%;
-  right:28%;
+  position:absolute;
+  z-index:12;
+  left:var(--discard-inset);
+  right:var(--discard-inset);
+  top:calc(var(--band-top) + var(--meld-th) + var(--discard-meld-gap) + 24px);
+  bottom:52%;
+  overflow:hidden;
   justify-content:center;
   flex-direction:row-reverse;
   flex-wrap:wrap;
-  align-content:flex-end;
-  max-height:18%
+  align-content:flex-start
 }
+
+.player-band-bottom{
+  left:var(--discard-inset);
+  right:var(--discard-inset);
+  top:calc(var(--band-top) + 10%);
+  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)));
+  flex-direction:column-reverse;
+  align-items:stretch
+}
+.player-band-bottom .meld-bottom{
+  flex:0 1 auto;
+  max-height:var(--self-meld-band);
+  justify-content:center;
+  align-content:flex-end;
+  flex-wrap:wrap
+}
+.player-band-bottom .discard-bottom{
+  flex:1 1 auto;
+  min-height:0;
+  justify-content:center;
+  flex-direction:row;
+  align-content:flex-end;
+  flex-wrap:wrap
+}
+
+.player-band-left{
+  left:calc(var(--band-side) + 4px);
+  top:calc(var(--band-top) + 10px);
+  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 10px);
+  flex-direction:row;
+  align-items:flex-start;
+  width:min(calc(var(--discard-tile-height) * 2 + var(--meld-rail) + var(--discard-meld-gap) + 28px),28%)
+}
+.player-band-left .meld-left{
+  flex:0 0 auto;
+  width:max(var(--meld-rail),calc(var(--meld-th) + 28px));
+  flex-direction:column;
+  flex-wrap:nowrap;
+  justify-content:flex-start
+}
+.player-band-left .discard-left{
+  flex:1 1 auto;
+  flex-direction:column;
+  justify-content:flex-start;
+  align-content:flex-start;
+  flex-wrap:wrap
+}
+
+.player-band-right{
+  right:calc(var(--band-side) + 4px);
+  top:calc(var(--band-top) + 10px);
+  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 10px);
+  flex-direction:row;
+  align-items:flex-start;
+  width:min(calc(var(--discard-tile-height) * 2 + var(--meld-rail) + var(--discard-meld-gap) + 28px),28%)
+}
+.player-band-right .meld-right{
+  flex:0 0 auto;
+  width:max(var(--meld-rail),calc(var(--meld-th) + 28px));
+  flex-direction:column;
+  flex-wrap:nowrap;
+  justify-content:flex-start
+}
+.player-band-right .discard-right{
+  flex:1 1 auto;
+  flex-direction:column-reverse;
+  justify-content:flex-start;
+  align-content:flex-end;
+  flex-wrap:wrap
+}
+
+/* 自己：左→右；对家：右→左；左右：最新靠近自己 */
 .discard-bottom{
-  bottom:28%;
-  left:28%;
-  right:28%;
   justify-content:center;
   flex-direction:row;
   flex-wrap:wrap;
-  align-content:flex-end;
-  max-height:18%
+  align-content:flex-end
 }
 .discard-left,
 .discard-right{
-  top:28%;
-  bottom:28%;
-  width:calc(var(--discard-tile-height) * 2 + var(--discard-tile-gap) * 3);
-  max-width:min(24%,calc(var(--discard-tile-height) * 2 + var(--discard-tile-gap) * 3));
   flex-wrap:wrap;
   align-items:center;
-  gap:var(--discard-tile-gap);
-  overflow:visible
+  gap:var(--discard-tile-gap)
 }
 .discard-left{
-  left:22%;
   flex-direction:column;
   justify-content:flex-start;
   align-content:flex-start
 }
 .discard-right{
-  right:22%;
   flex-direction:column-reverse;
   justify-content:flex-start;
   align-content:flex-end
@@ -972,15 +1089,13 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 
 /* v0.9 exposed meld and action layout fix */
 
-/* 四家副露轨：不旋转、不压弃牌、不被底座位裁切 */
+/* 四家副露轨：band 内为 relative；独立 absolute 仅作无 band 兜底 */
 .meld-zone{
-  position:absolute;
-  z-index:8;
   display:flex;
   gap:5px;
   align-items:center;
   pointer-events:none;
-  overflow:visible;
+  overflow:hidden;
   box-sizing:border-box;
 }
 
@@ -989,69 +1104,44 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 
 .meld-top{
-  top:calc(var(--band-top) + var(--meld-gap));
-  left:var(--discard-inset);
-  right:var(--discard-inset);
   transform:none;
   justify-content:center;
-  flex-wrap:wrap;
-  max-height:calc(var(--meld-th) + 12px);
+  flex-wrap:wrap
 }
 
 .meld-bottom{
-  left:var(--discard-inset);
-  right:var(--discard-inset);
-  /* 座位盒外侧、紧贴座位顶边（与左右家副露在座位外一致，勿叠入自己座位） */
-  bottom:calc(var(--self-hand-band) + var(--meld-gap) + max(4px,env(safe-area-inset-bottom,0px)));
-  height:auto;
-  max-height:var(--self-meld-band);
   justify-content:center;
   align-content:flex-end;
   align-items:flex-end;
   flex-wrap:wrap;
   gap:6px;
-  overflow:visible;
-  z-index:9;
-  pointer-events:none;
+  pointer-events:none
 }
 .meld-bottom:not(:empty){
-  display:flex;
+  display:flex
 }
 .meld-bottom .meld-group{
   flex:0 0 auto;
-  padding-bottom:18px;
+  padding-bottom:18px
 }
 .meld-top .meld-group{
   padding-top:18px;
-  padding-bottom:6px;
+  padding-bottom:6px
 }
 
-/* 左右副露：上下止点对称对家；牌面朝向该家（槽位按旋转后占地） */
+/* 左右副露：牌面朝向该家（槽位按旋转后占地） */
 .meld-left,
 .meld-right{
-  top:calc(var(--band-top) + 10px);
-  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 10px);
-  width:max(var(--meld-rail),calc(var(--meld-th) + 28px));
-  max-height:none;
+  max-height:100%;
   transform:none;
   flex-direction:column;
   flex-wrap:nowrap;
-  align-content:center;
+  align-content:flex-start;
   align-items:center;
   justify-content:flex-start;
   padding-top:clamp(8px,4%,28px);
   padding-bottom:0;
-  gap:6px;
-  overflow:visible;
-  z-index:9;
-}
-
-.meld-left{
-  left:calc(var(--band-side) + 4px);
-}
-
-.meld-right{
-  right:calc(var(--band-side) + 4px);
+  gap:6px
 }
 
 .meld-group{
@@ -1304,8 +1394,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 .player-event-mini-tile .tile,
 .player-event-mini-tile .tile-event-mini{
-  width:clamp(26px,3.2vw,30px);
-  height:calc(clamp(26px,3.2vw,30px) * 1.42);
+  width:clamp(42px,5vw,52px);
+  height:calc(clamp(42px,5vw,52px) * 1.42);
   margin:0!important;
   transform:none!important;
   box-shadow:none!important;
@@ -1375,7 +1465,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .meld-right{
     width:max(clamp(38px,11vw,56px),calc(var(--meld-th) + 28px));
     gap:6px;
-    overflow:visible;
+    overflow:hidden;
   }
 
   .action-dock{
@@ -1401,13 +1491,6 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .meld-left,
   .meld-right{
     width:clamp(44px,5.5vw,64px);
-  }
-
-  .meld-bottom{
-    bottom:calc(var(--self-hand-band) + var(--meld-gap) + max(4px,env(safe-area-inset-bottom,0px)));
-    height:auto;
-    max-height:var(--self-meld-band);
-    z-index:9
   }
 
   .seat-bottom{
@@ -1736,20 +1819,22 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   }
 
   /* —— 2) 上家副露：22%–34% —— */
-  .meld-top {
-    top: 22%;
-    left: var(--discard-inset);
-    right: var(--discard-inset);
-    height: 12%;
-    max-height: 12%;
-    bottom: auto;
-    padding: 1px 0;
-    overflow: hidden;
-    flex-wrap: wrap;
-    align-content: center;
-    justify-content: center;
-    gap: 3px;
-    z-index: 9;
+  .player-band-top{
+    top:22%;
+    left:var(--discard-inset);
+    right:var(--discard-inset);
+    height:12%;
+    max-height:12%;
+    bottom:auto;
+    gap:0
+  }
+  .player-band-top .meld-top{
+    max-height:100%;
+    overflow:hidden;
+    flex-wrap:wrap;
+    align-content:center;
+    justify-content:center;
+    gap:3px
   }
 
   /* —— 3) 中央弃牌 + 计数：34%–64% —— */
@@ -1776,50 +1861,70 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .discard-zone {
     z-index: 4;
   }
-  .discard-top {
-    top: 32%;
-    left: max(30%, calc(50% - 11rem));
-    right: max(30%, calc(50% - 11rem));
-    bottom: auto;
-    max-height: 18%;
-    overflow: visible;
-    flex-wrap: wrap;
-    flex-direction: row-reverse;
-    justify-content: center;
-    align-content: flex-end;
+
+  .player-band-left{
+    top:34%;
+    bottom:36%;
+    left:calc(2px + var(--band-side));
+    width:min(calc(var(--discard-tile-height) * 2 + var(--meld-rail) + var(--discard-meld-gap) + 16px),28%);
+    gap:var(--discard-meld-gap)
   }
-  .discard-bottom {
-    top: auto;
-    bottom: 34%;
-    left: max(30%, calc(50% - 11rem));
-    right: max(30%, calc(50% - 11rem));
-    max-height: 18%;
-    overflow: visible;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-content: flex-end;
+  .player-band-right{
+    top:34%;
+    bottom:36%;
+    right:calc(2px + var(--band-side));
+    width:min(calc(var(--discard-tile-height) * 2 + var(--meld-rail) + var(--discard-meld-gap) + 16px),28%);
+    gap:var(--discard-meld-gap)
   }
-  .discard-left,
-  .discard-right {
-    top: 32%;
-    bottom: 34%;
-    max-height: 34%;
-    width: calc(var(--discard-tile-height) * 2 + var(--discard-tile-gap) * 3);
-    max-width: min(24%, calc(var(--discard-tile-height) * 2 + var(--discard-tile-gap) * 3));
-    overflow: visible;
-    flex-wrap: wrap;
+  .player-band-left .meld-left,
+  .player-band-right .meld-right{
+    max-height:100%;
+    overflow:hidden;
+    flex-wrap:wrap;
+    gap:2px;
+    padding-top:2px
   }
-  .discard-left {
-    left: calc(var(--band-side) + var(--meld-rail) + 2px);
-    flex-direction: column;
-    justify-content: flex-start;
-    align-content: flex-start;
+  .player-band-left .discard-left,
+  .player-band-right .discard-right{
+    overflow:hidden;
+    flex-wrap:wrap
   }
-  .discard-right {
-    right: calc(var(--band-side) + var(--meld-rail) + 2px);
-    flex-direction: column-reverse;
-    justify-content: flex-start;
-    align-content: flex-end;
+
+  /* 自己：副露 64%–76%，弃牌在其上 34%–(64%-gap) */
+  .player-band-bottom{
+    top:34%;
+    bottom:24%;
+    left:var(--discard-inset);
+    right:var(--discard-inset);
+    gap:var(--discard-meld-gap)
+  }
+  .player-band-bottom .meld-bottom{
+    flex:0 1 auto;
+    max-height:38%;
+    overflow:hidden;
+    flex-wrap:wrap;
+    align-content:center;
+    gap:3px
+  }
+  .player-band-bottom .discard-bottom{
+    flex:1 1 auto;
+    min-height:0;
+    overflow:hidden;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-content:flex-end
+  }
+
+  .discard-top{
+    top:32%;
+    left:max(30%,calc(50% - 11rem));
+    right:max(30%,calc(50% - 11rem));
+    bottom:66%;
+    overflow:hidden;
+    flex-wrap:wrap;
+    flex-direction:row-reverse;
+    justify-content:center;
+    align-content:flex-end
   }
   .ng-game-toast {
     top: calc(50% + 40px);
@@ -1833,23 +1938,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     font-size: 12px;
   }
 
-  /* —— 4) 自己副露：64%–76% —— */
-  .meld-bottom {
-    top: 64%;
-    left: var(--discard-inset);
-    right: var(--discard-inset);
-    height: 12%;
-    max-height: 12%;
-    bottom: auto;
-    padding: 1px 0;
-    overflow: hidden;
-    flex-wrap: wrap;
-    align-content: center;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    z-index: 9;
-  }
+  /* —— 4) 自己副露 + 弃牌：player-band-bottom 已分区 —— */
 
   /* —— 5) 自己手牌：76%–100% —— */
   .seat-bottom {
@@ -1939,29 +2028,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     overflow: hidden;
   }
 
-  /* —— 左右副露：限制在中央高度 34%–64% —— */
-  .meld-left,
-  .meld-right {
-    top: 34%;
-    bottom: 36%;
-    max-height: 30%;
-    width: max(var(--meld-rail), calc(var(--meld-th) + 10px));
-    overflow: visible;
-    flex-wrap: wrap;
-    flex-direction: column;
-    align-content: flex-start;
-    justify-content: flex-start;
-    padding-top: 2px;
-    padding-bottom: 0;
-    gap: 2px;
-    z-index: 9;
-  }
-  .meld-left {
-    left: calc(2px + var(--band-side) + 2px);
-  }
-  .meld-right {
-    right: calc(2px + var(--band-side) + 2px);
-  }
+  /* —— 左右副露 + 弃牌：player-band-left/right 已分区 —— */
 
   .meld-group {
     padding: 3px;

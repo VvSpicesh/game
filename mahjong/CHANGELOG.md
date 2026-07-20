@@ -1,3 +1,13 @@
+# v0.14.52
+
+## 弃牌与副露分区防重叠
+
+- 新增 `player-band` 容器：弃牌 / 副露 flex 分区，14px 间距，`overflow: hidden`
+- 修复自己 / 左右 / 紧凑横屏下弃牌盖住副露
+
+- Service Worker：`nocturne-games-v57`
+
+---
 # v0.14.49
 
 ## 出牌提示放大并统一碰杠样式
