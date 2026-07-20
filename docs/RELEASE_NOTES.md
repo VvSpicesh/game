@@ -1,5 +1,13 @@
 # RELEASE NOTES
 
+## Platform v0.14.41
+
+**Service Worker**：`nocturne-games-v46`
+
+- 麻将弃牌可读性：放大、最新高亮、左右正向、中央出牌提示
+
+---
+
 ## Platform v0.14.40
 
 **Service Worker**：`nocturne-games-v45`

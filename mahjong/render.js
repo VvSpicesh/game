@@ -228,15 +228,76 @@ export function renderMelds(state){
   }
 }
 
+function resolveLatestDiscard(state){
+  const tip=state.discards?.length?state.discards[state.discards.length-1]:null;
+  const claim=state.lastDiscard;
+  if(!tip||!claim)return null;
+  if(tip.player!==claim.player||tip.tile?.id!==claim.tile?.id)return null;
+  return tip;
+}
+
 function renderDiscards(state){
+  const latest=resolveLatestDiscard(state);
+  const cueKey=latest?`${latest.player}:${latest.tile?.id}:${state.discards.length}`:"";
+  const shouldAnimate=Boolean(cueKey&&cueKey!==lastDiscardCueKey);
+  if(cueKey)lastDiscardCueKey=cueKey;
+  else lastDiscardCueKey="";
+
   for(let index=0;index<4;index++){
     const zone=document.getElementById(`discard-${index}`);
+    if(!zone)continue;
     zone.innerHTML="";
 
     state.discards
       .filter(item=>item.player===index)
-      .forEach(item=>zone.appendChild(createTileElement(item.tile,"tile-discard")));
+      .forEach(item=>{
+        const isLatest=latest&&item===latest;
+        const classes=["tile-discard","discard-tile"];
+        if(isLatest){
+          classes.push("discard-tile-latest");
+          if(shouldAnimate)classes.push("discard-tile-latest-animate");
+        }
+        zone.appendChild(createTileElement(item.tile,classes.join(" ")));
+      });
   }
+
+  updateDiscardCue(latest,shouldAnimate);
+}
+
+let lastDiscardCueKey="";
+let discardCueTimer=0;
+
+function updateDiscardCue(latest,animate){
+  const cue=document.getElementById("discardCue");
+  if(!cue)return;
+  if(!latest?.tile||!animate){
+    if(!latest?.tile){
+      cue.classList.remove("show","weak");
+      cue.hidden=true;
+    }
+    return;
+  }
+
+  const playerIndex=latest.player;
+  const isSelf=playerIndex===0;
+  const seat=SEAT_LABELS[playerIndex]||"玩家";
+  const name=tileName(latest.tile);
+  const textEl=document.getElementById("discardCueText");
+  const tileWrap=document.getElementById("discardCueTile");
+  if(textEl)textEl.textContent=`${seat}打出：${name}`;
+  if(tileWrap){
+    tileWrap.innerHTML="";
+    tileWrap.appendChild(createTileElement(latest.tile,"tile-discard"));
+  }
+
+  cue.hidden=false;
+  cue.classList.toggle("weak",isSelf);
+  cue.classList.add("show");
+  clearTimeout(discardCueTimer);
+  discardCueTimer=setTimeout(()=>{
+    cue.classList.remove("show","weak");
+    cue.hidden=true;
+  },isSelf?1100:1600);
 }
 
 function renderActions(state){
