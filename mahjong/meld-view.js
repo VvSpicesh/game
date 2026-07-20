@@ -35,8 +35,7 @@ export function getRelativeSourceTag(ownerIndex,fromPlayerIndex){
 }
 
 /**
- * 副露拥有者朝向牌桌中央的外凸方向（不写死座位 CSS）
- * @returns {"up"|"down"|"left"|"right"|null}
+ * @deprecated 兼容旧测试
  */
 export function getMeldOwnerNudge(ownerSeat){
   if(ownerSeat===0)return "up";
@@ -66,14 +65,6 @@ export function normalizeMeldFrom(meld){
   return from;
 }
 
-const RELATIVE_SEAT=["自己","上家","对家","下家"];
-
-function relativeSeatName(viewerSeat,sourceSeat){
-  if(!Number.isInteger(viewerSeat)||!Number.isInteger(sourceSeat))return "";
-  const diff=(sourceSeat-viewerSeat+4)%4;
-  return RELATIVE_SEAT[diff]||"";
-}
-
 function sourceSlotIndex(position,count){
   if(position==="left")return 0;
   if(position==="right")return Math.max(0,count-1);
@@ -81,7 +72,43 @@ function sourceSlotIndex(position,count){
 }
 
 /**
- * 副露牌展示计划：来源位 / 短标签 / 外凸方向（全部正向竖放）
+ * 碰/杠底层：按来源关系排列，来源位金色描边（isSource）
+ * @param {object[]} rowTiles
+ * @param {number} ownerSeat
+ * @param {number|null} from
+ * @param {number} count
+ */
+function buildOrientedRow(rowTiles,ownerSeat,from,count){
+  const position=from!=null?getRelativeSourcePosition(ownerSeat,from):null;
+  const slice=rowTiles.slice(0,count);
+  if(!position||slice.length<2){
+    return slice.map(tile=>({tile,isSource:false,face:"show"}));
+  }
+
+  const sourceIndex=sourceSlotIndex(position,count);
+  const pool=slice.slice();
+  const sourceTile=pool[0];
+  const items=[];
+  let pi=1;
+  for(let i=0;i<count;i++){
+    if(i===sourceIndex){
+      items.push({tile:sourceTile,isSource:true,face:"show"});
+    }else{
+      items.push({tile:pool[pi++]||sourceTile,isSource:false,face:"show"});
+    }
+  }
+  return items;
+}
+
+const MELD_WIDTH_SCALE={
+  peng:1,
+  mingGang:1.1,
+  buGang:1.1,
+  anGang:1.1
+};
+
+/**
+ * 副露展示计划：分层（碰单层 / 明杠·补杠三+一 / 暗杠四+二）
  * @param {object|null|undefined} meld
  * @param {number} ownerSeat
  */
@@ -89,71 +116,62 @@ export function buildMeldTilePlan(meld,ownerSeat){
   const type=String(meld?.type||"");
   const tiles=Array.isArray(meld?.tiles)?meld.tiles:[];
   const from=normalizeMeldFrom(meld);
-  const sourceLabel=from!=null?relativeSeatName(ownerSeat,from):"";
-  const title={
-    peng:"碰",
-    mingGang:"杠",
-    anGang:"暗杠",
-    buGang:"补杠"
-  }[type]||type||"副露";
-  const ownerNudge=getMeldOwnerNudge(ownerSeat);
-
-  if(type==="anGang"){
-    return {
-      items:tiles.map((tile,tileIndex)=>({
-        tile,
-        isSource:false,
-        sourceTag:null,
-        face:ownerSeat===0&&tileIndex===tiles.length-1?"show":"back"
-      })),
-      sourcePosition:null,
-      ownerNudge,
-      badge:null,
-      title,
-      sourceLabel:""
-    };
-  }
-
-  const position=
+  const sourcePosition=
     (type==="peng"||type==="mingGang"||type==="buGang")&&from!=null
       ?getRelativeSourcePosition(ownerSeat,from)
       :null;
-  const sourceTag=
-    (type==="peng"||type==="mingGang"||type==="buGang")&&from!=null
-      ?getRelativeSourceTag(ownerSeat,from)
-      :null;
+  const widthScale=MELD_WIDTH_SCALE[type]??1;
 
-  if(!position||tiles.length<2){
+  if(type==="anGang"){
+    const topTiles=tiles.length>=4?[tiles[1],tiles[2]]:tiles.slice(0,2);
     return {
-      items:tiles.map(tile=>({tile,isSource:false,sourceTag:null,face:"show"})),
+      type,
+      widthScale,
       sourcePosition:null,
-      ownerNudge,
-      badge:type==="buGang"?"补":null,
-      title,
-      sourceLabel:""
+      layers:{
+        base:tiles.slice(0,4).map(tile=>({tile,isSource:false,face:"back"})),
+        top:topTiles.map((tile,tileIndex)=>({
+          tile,
+          isSource:false,
+          face:ownerSeat===0&&tileIndex===1?"show":"back"
+        }))
+      }
     };
   }
 
-  const n=tiles.length;
-  const sourceIndex=sourceSlotIndex(position,n);
-  const pool=tiles.slice();
-  const sourceTile=pool.shift();
-  const items=[];
-  for(let i=0;i<n;i++){
-    if(i===sourceIndex){
-      items.push({tile:sourceTile,isSource:true,sourceTag,face:"show"});
-    }else{
-      items.push({tile:pool.shift(),isSource:false,sourceTag:null,face:"show"});
-    }
+  if(type==="peng"){
+    return {
+      type,
+      widthScale,
+      sourcePosition,
+      layers:{
+        base:buildOrientedRow(tiles,ownerSeat,from,3),
+        top:null
+      }
+    };
+  }
+
+  if(type==="mingGang"||type==="buGang"){
+    const topTile=tiles[3]??tiles[tiles.length-1]??null;
+    return {
+      type,
+      widthScale,
+      sourcePosition,
+      layers:{
+        base:buildOrientedRow(tiles,ownerSeat,from,3),
+        top:topTile?[{tile:topTile,isSource:false,face:"show"}]:[]
+      }
+    };
   }
 
   return {
-    items,
-    sourcePosition:position,
-    ownerNudge,
-    badge:type==="buGang"?"补":null,
-    title,
-    sourceLabel
+    type:type||"unknown",
+    widthScale:1,
+    sourcePosition:null,
+    layers:{
+      base:tiles.map(tile=>({tile,isSource:false,face:"show"})),
+      top:null
+    }
   };
 }
 
@@ -163,13 +181,19 @@ export function buildMeldTilePlan(meld,ownerSeat){
  */
 export function meldDisplayInfo(meld,ownerSeat){
   const plan=buildMeldTilePlan(meld,ownerSeat);
+  const title={
+    peng:"碰",
+    mingGang:"杠",
+    anGang:"暗杠",
+    buGang:"补杠"
+  }[plan.type]||plan.type||"副露";
   return {
     arrow:null,
-    badge:plan.badge,
-    title:plan.title,
-    sourceLabel:plan.sourceLabel,
+    badge:null,
+    title,
+    sourceLabel:"",
     sourcePosition:plan.sourcePosition,
-    ownerNudge:plan.ownerNudge
+    ownerNudge:null
   };
 }
 

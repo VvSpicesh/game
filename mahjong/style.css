@@ -1122,7 +1122,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 .meld-bottom .meld-group{
   flex:0 0 auto;
-  padding-bottom:18px
+  padding-bottom:6px
 }
 .meld-top .meld-group{
   padding-top:18px;
@@ -1148,7 +1148,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   display:flex;
   align-items:center;
   gap:3px;
-  padding:10px 6px 6px;
+  padding:8px 6px 6px;
   border-radius:8px;
   background:rgba(4,24,17,.82);
   border:1px solid rgba(255,255,255,.12);
@@ -1156,14 +1156,96 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   flex:0 0 auto;
   position:relative
 }
-.meld-badge{
-  position:absolute;top:2px;right:3px;
-  font-size:10px;line-height:1.1;font-weight:800;color:#f0e2b8;
-  background:rgba(0,0,0,.5);border-radius:4px;padding:1px 4px;
-  pointer-events:none;z-index:3;white-space:nowrap
+
+.meld-type-peng{--meld-width-scale:1}
+.meld-type-mingGang,
+.meld-type-buGang,
+.meld-type-anGang{--meld-width-scale:1.1}
+
+.meld-stack,
+.meld-layer-flat{
+  transform:scale(var(--meld-width-scale,1));
+  transform-origin:center center
 }
-.meld-group-angang{
+
+/* 叠层副露：明杠 / 补杠 / 暗杠 */
+.meld-stack{
+  position:relative;
+  display:inline-flex;
+  flex-direction:column;
+  align-items:center;
+  padding-top:calc(var(--meld-th) * .42)
+}
+.meld-layer{
+  display:flex;
+  gap:2px;
+  align-items:center;
+  justify-content:center
+}
+.meld-layer-flat{
+  flex-direction:row
+}
+.meld-layer-base{
+  flex-direction:row
+}
+.meld-layer-top{
+  position:absolute;
+  top:0;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:3;
+  flex-direction:row
+}
+.meld-type-anGang .meld-layer-top{
+  gap:1px
+}
+.meld-type-anGang .meld-layer-top .meld-tile-wrap:nth-child(2){
+  margin-left:-3px
+}
+
+.meld-top .meld-stack{
+  padding-top:0;
+  padding-bottom:calc(var(--meld-th) * .42)
+}
+.meld-top .meld-layer-top{
+  top:auto;
+  bottom:0;
+  transform:translateX(-50%)
+}
+
+.meld-left .meld-stack,
+.meld-right .meld-stack{
+  padding-top:0
+}
+.meld-left .meld-stack{
+  padding-left:calc(var(--meld-tw) * .42)
+}
+.meld-right .meld-stack{
+  padding-right:calc(var(--meld-tw) * .42)
+}
+.meld-left .meld-layer-flat,
+.meld-left .meld-layer-base{
+  flex-direction:column
+}
+.meld-right .meld-layer-flat,
+.meld-right .meld-layer-base{
+  flex-direction:column
+}
+.meld-left .meld-layer-top{
+  left:0;
+  top:50%;
+  transform:translateY(-50%)
+}
+.meld-right .meld-layer-top{
+  left:auto;
+  right:0;
+  top:50%;
+  transform:translateY(-50%)
+}
+
+.meld-type-anGang{
   outline:1px dashed rgba(255,255,255,.22);
+  background:rgba(2,16,12,.88)
 }
 
 /* 副露牌：wrapper 负责排列/高亮/标签；.tile 只负责朝向该家 */
@@ -1190,62 +1272,14 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .meld-left .meld-tile-wrap > .tile{transform:rotate(90deg)}
 .meld-right .meld-tile-wrap > .tile{transform:rotate(-90deg)}
 
-/* 来源牌：金色边框与外凸在 wrapper，不随牌面旋转 */
+/* 来源牌：金色描边 + 轻微发光（无文字/箭头） */
 .meld-tile-wrap.meld-source{
   z-index:2;
   border-radius:5px;
   box-shadow:
-    0 0 0 2px var(--gold),
-    0 4px 10px rgba(0,0,0,.35)
-}
-.meld-nudge-up{transform:translateY(-7px)}
-.meld-nudge-down{transform:translateY(7px)}
-.meld-nudge-left{transform:translateX(-7px)}
-.meld-nudge-right{transform:translateX(7px)}
-
-/* 来源标签：始终正对当前用户，不跟牌面旋转 */
-.meld-source-label{
-  position:absolute;
-  z-index:4;
-  min-width:1.15em;
-  padding:2px 5px;
-  border-radius:999px;
-  background:rgba(6,18,12,.92);
-  border:1px solid rgba(239,199,104,.75);
-  color:#ffe7a8;
-  font-size:clamp(13px,1.6vw,16px);
-  font-weight:850;
-  line-height:1.1;
-  text-align:center;
-  pointer-events:none;
-  box-shadow:0 2px 6px rgba(0,0,0,.35);
-  transform:none
-}
-/* 标签放在牌桌外侧（相对拥有者），不挡牌面 */
-.meld-bottom .meld-source-label,
-.meld-nudge-up .meld-source-label{
-  top:calc(100% + 2px);
-  left:50%;
-  transform:translateX(-50%)
-}
-.meld-top .meld-source-label,
-.meld-nudge-down .meld-source-label{
-  bottom:calc(100% + 2px);
-  left:50%;
-  transform:translateX(-50%)
-}
-.meld-left .meld-source-label,
-.meld-nudge-right .meld-source-label{
-  right:calc(100% + 2px);
-  top:50%;
-  left:auto;
-  transform:translateY(-50%)
-}
-.meld-right .meld-source-label,
-.meld-nudge-left .meld-source-label{
-  left:calc(100% + 2px);
-  top:50%;
-  transform:translateY(-50%)
+    0 0 0 2.5px var(--gold,#e8c468),
+    0 0 10px rgba(232,196,104,.48),
+    0 2px 6px rgba(0,0,0,.28)
 }
 
 /* 左右组：纵向排列；槽位按旋转后宽高对调 */
@@ -1255,7 +1289,6 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   align-items:center;
   gap:3px;
   padding:6px 12px;
-  transform:none!important;
   margin:0
 }
 .meld-left .meld-tile-wrap,
@@ -2042,9 +2075,6 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .meld-right .meld-tile-wrap {
     width: var(--meld-th);
     height: var(--meld-tw);
-  }
-  .meld-source-label {
-    font-size: 13px;
   }
 
   /* 操作栏：高于中央计数器，落在自己手牌带之上 */

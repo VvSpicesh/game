@@ -584,48 +584,52 @@ export function runRuleTests(){
     assert(relativeSeatDirection(0,1)==="←");
   });
 
-  record("MV2","补杠保留来源并标注","来源标签 + 补",()=>{
+  record("MV2","补杠保留来源叠层","来源位 + 顶层第四张",()=>{
     const tiles=[T("w",1,1),T("w",1,2),T("w",1,3),T("w",1,4)];
     const plan=buildMeldTilePlan({type:"buGang",from:2,tiles},0);
-    assert(plan.badge==="补");
     assert(plan.sourcePosition==="middle");
-    assert(plan.items.filter(i=>i.isSource).length===1);
-    assert(plan.items[1].isSource===true);
-    assert(plan.items[1].sourceTag==="对");
-    assert(plan.ownerNudge==="up");
+    assert(plan.layers.base.filter(i=>i.isSource).length===1);
+    assert(plan.layers.base[1].isSource===true);
+    assert(plan.layers.top.length===1);
+    assert(plan.widthScale===1.1);
   });
 
-  record("MV3","暗杠无来源","anGang",()=>{
+  record("MV3","暗杠双层无来源","四底 + 二顶",()=>{
     const tiles=[T("t",5,1),T("t",5,2),T("t",5,3),T("t",5,4)];
     const plan=buildMeldTilePlan({type:"anGang",from:0,tiles},0);
     assert(plan.sourcePosition===null);
-    assert(plan.items.every(i=>!i.isSource&&!i.sourceTag));
-    assert(plan.badge===null);
+    assert(plan.layers.base.length===4);
+    assert(plan.layers.top.length===2);
+    assert(plan.layers.base.every(i=>!i.isSource));
+    assert(plan.layers.top.every(i=>!i.isSource));
   });
 
-  record("MV4","旧存档缺 from","无标签无外凸标记",()=>{
+  record("MV4","旧存档缺 from","无来源描边",()=>{
     assert(normalizeMeldFrom({type:"peng"})===null);
     const plan=buildMeldTilePlan({type:"peng",tiles:[T("w",2,1),T("w",2,2),T("w",2,3)]},0);
     assert(plan.sourcePosition===null);
-    assert(plan.items.every(i=>!i.isSource&&!i.sourceTag));
+    assert(plan.layers.base.every(i=>!i.isSource));
   });
 
-  record("MV4b","碰三向来源位与标签","left/middle/right",()=>{
+  record("MV4b","碰三向来源位","left/middle/right",()=>{
     const tiles=[T("b",3,1),T("b",3,2),T("b",3,3)];
     const a=buildMeldTilePlan({type:"peng",from:1,tiles},0);
     const b=buildMeldTilePlan({type:"peng",from:2,tiles},0);
     const c=buildMeldTilePlan({type:"peng",from:3,tiles},0);
-    assert(a.items[0].isSource&&a.items[0].sourceTag==="上");
-    assert(b.items[1].isSource&&b.items[1].sourceTag==="对");
-    assert(c.items[2].isSource&&c.items[2].sourceTag==="下");
+    assert(a.layers.base[0].isSource);
+    assert(b.layers.base[1].isSource);
+    assert(c.layers.base[2].isSource);
+    assert(a.widthScale===1);
   });
 
-  record("MV4c","直杠来源正向位","四张中一来源",()=>{
+  record("MV4c","直杠来源叠层","三底一顶 + 来源位",()=>{
     const tiles=[T("t",9,1),T("t",9,2),T("t",9,3),T("t",9,4)];
     const plan=buildMeldTilePlan({type:"mingGang",from:3,tiles},0);
     assert(plan.sourcePosition==="right");
-    assert(plan.items[3].isSource&&plan.items[3].sourceTag==="下");
-    assert(plan.items.filter(i=>i.isSource).length===1);
+    assert(plan.layers.base[2].isSource);
+    assert(plan.layers.top.length===1);
+    assert(plan.layers.base.filter(i=>i.isSource).length===1);
+    assert(plan.widthScale===1.1);
   });
 
   record("MV5","摸牌后新牌在最右侧","draw 固定最右",()=>{

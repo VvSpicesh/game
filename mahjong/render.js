@@ -1,6 +1,6 @@
 import {tileFace,tileName,tileDisplayName} from "./tiles.js?v=0.14.49";
 import {getLegalDiscardIndexes,SUIT_LABEL} from "./rules-guard.js";
-import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.42";
+import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.53";
 import {
   RELATIVE_SEAT_LABELS,
   getPlayerDisplayName,
@@ -203,6 +203,58 @@ function renderSeat(state,player,index,handlers){
 
 }
 
+function renderMeldTile(item){
+  const wrap=document.createElement("div");
+  wrap.className="meld-tile-wrap";
+  if(item.isSource)wrap.classList.add("meld-source");
+  wrap.appendChild(
+    item.face==="back"
+      ?createTileElement(null,"tile-small")
+      :createTileElement(item.tile,"tile-small")
+  );
+  return wrap;
+}
+
+/**
+ * 统一副露 DOM：碰 / 明杠 / 补杠 / 暗杠
+ * @param {object} meld
+ * @param {number} ownerSeat
+ */
+export function renderMeld(meld,ownerSeat){
+  const plan=buildMeldTilePlan(meld,ownerSeat);
+  const group=document.createElement("div");
+  group.className=`meld-group meld-type-${plan.type||"unknown"}`;
+  if(plan.sourcePosition)group.classList.add(`meld-source-${plan.sourcePosition}`);
+  group.style.setProperty("--meld-width-scale",String(plan.widthScale??1));
+
+  const top=plan.layers?.top;
+  const base=plan.layers?.base||[];
+
+  if(top&&top.length){
+    const stack=document.createElement("div");
+    stack.className="meld-stack";
+
+    const topLayer=document.createElement("div");
+    topLayer.className="meld-layer meld-layer-top";
+    top.forEach(item=>topLayer.appendChild(renderMeldTile(item)));
+
+    const baseLayer=document.createElement("div");
+    baseLayer.className="meld-layer meld-layer-base";
+    base.forEach(item=>baseLayer.appendChild(renderMeldTile(item)));
+
+    stack.appendChild(topLayer);
+    stack.appendChild(baseLayer);
+    group.appendChild(stack);
+  }else{
+    const flat=document.createElement("div");
+    flat.className="meld-layer meld-layer-flat";
+    base.forEach(item=>flat.appendChild(renderMeldTile(item)));
+    group.appendChild(flat);
+  }
+
+  return group;
+}
+
 export function renderMelds(state){
   for(let index=0;index<4;index++){
     const zone=document.getElementById(`meld-${index}`);
@@ -213,44 +265,7 @@ export function renderMelds(state){
     if(!player)continue;
 
     (player.melds||[]).forEach(meld=>{
-      const plan=buildMeldTilePlan(meld,index);
-      const group=document.createElement("div");
-      group.className="meld-group"+(meld.type==="anGang"?" meld-group-angang":"");
-      if(plan.sourcePosition)group.classList.add(`meld-source-${plan.sourcePosition}`);
-      group.title=plan.badge?`${plan.title} · ${plan.badge}`:plan.title;
-      if(plan.sourceLabel)group.title+=` · ${plan.sourceLabel}`;
-
-      if(plan.badge){
-        const badge=document.createElement("span");
-        badge.className="meld-badge";
-        badge.textContent=plan.badge;
-        group.appendChild(badge);
-      }
-
-      plan.items.forEach(item=>{
-        const wrap=document.createElement("div");
-        wrap.className="meld-tile-wrap";
-        if(item.isSource){
-          wrap.classList.add("meld-source");
-          if(plan.ownerNudge)wrap.classList.add(`meld-nudge-${plan.ownerNudge}`);
-        }
-
-        if(item.isSource&&item.sourceTag){
-          const label=document.createElement("span");
-          label.className="meld-source-label";
-          label.textContent=item.sourceTag;
-          wrap.appendChild(label);
-        }
-
-        const tileEl=
-          item.face==="back"
-            ?createTileElement(null,"tile-small")
-            :createTileElement(item.tile,"tile-small");
-        wrap.appendChild(tileEl);
-        group.appendChild(wrap);
-      });
-
-      zone.appendChild(group);
+      zone.appendChild(renderMeld(meld,index));
     });
   }
 }
@@ -346,47 +361,17 @@ function buildPlayerEventCopy({
 }){
   const actor=getPlayerDisplayName(playerIndex,viewerIndex,players);
   const tileLabel=tile?tileDisplayName(tile):"";
-  const source=
-    sourcePlayerIndex==null
-      ?null
-      :getPlayerDisplayName(sourcePlayerIndex,viewerIndex,players);
-  const pengSource=
-    sourcePengFrom==null
-      ?null
-      :getPlayerDisplayName(sourcePengFrom,viewerIndex,players);
-
   switch(action){
     case "discard":
       return{name:actor,actionWord:"打出",tileLabel,detail:null,tone:"discard",layout:"stack"};
     case "peng":
-      return{
-        name:actor,
-        actionWord:"碰",
-        tileLabel,
-        detail:source?`来源：${source} · ${tileLabel}`:tileLabel||null,
-        tone:"claim",
-        layout:"stack"
-      };
+      return{name:actor,actionWord:"碰",tileLabel,detail:null,tone:"claim",layout:"stack"};
     case "mingGang":
-      return{
-        name:actor,
-        actionWord:"直杠",
-        tileLabel,
-        detail:source?`来源：${source} · ${tileLabel}`:tileLabel||null,
-        tone:"claim",
-        layout:"stack"
-      };
+      return{name:actor,actionWord:"直杠",tileLabel,detail:null,tone:"claim",layout:"stack"};
     case "anGang":
       return{name:actor,actionWord:"暗杠",tileLabel,detail:null,tone:"claim",layout:"stack"};
     case "buGang":
-      return{
-        name:actor,
-        actionWord:"补杠",
-        tileLabel,
-        detail:pengSource?`原碰来源：${pengSource}`:null,
-        tone:"claim",
-        layout:"stack"
-      };
+      return{name:actor,actionWord:"补杠",tileLabel,detail:null,tone:"claim",layout:"stack"};
     case "hu":
       return{name:actor,actionWord:"胡",tileLabel,detail:null,tone:"hu",layout:"stack"};
     default:
@@ -423,10 +408,13 @@ export function showPlayerEvent(options={}){
 
   const players=options.players||[];
   const viewerIndex=Number.isInteger(options.viewerIndex)?options.viewerIndex:0;
-  const duration=Math.max(
-    400,
-    Number(options.duration)||(action==="discard"?1600:2200)
-  );
+  const defaultDuration=
+    action==="discard"
+      ?1600
+      :action==="peng"||action==="mingGang"||action==="buGang"||action==="anGang"
+        ?1000
+        :2200;
+  const duration=Math.max(400,Number(options.duration)||defaultDuration);
   const copy=buildPlayerEventCopy({
     action,
     playerIndex,
@@ -458,7 +446,15 @@ export function showPlayerEvent(options={}){
   actionEl.textContent=copy.actionWord;
   main.appendChild(actionEl);
 
-  if(copy.tileLabel&&(action==="discard"||action==="anGang"||action==="buGang"||action==="hu")){
+  if(
+    copy.tileLabel&&
+    (action==="discard"||
+      action==="peng"||
+      action==="mingGang"||
+      action==="anGang"||
+      action==="buGang"||
+      action==="hu")
+  ){
     const tileNameEl=document.createElement("span");
     tileNameEl.className="player-event-tile-name";
     tileNameEl.textContent=copy.tileLabel;
@@ -533,7 +529,7 @@ export function showPlayerActionEffect(playerIndex,actionName,tile,scoreText="")
     tile:tile||null,
     scoreText:scoreText||"",
     players:[],
-    duration:2200
+    duration:1000
   });
 }
 
