@@ -23,7 +23,7 @@ DOM、定缺弹窗、非法出牌样式、胡牌/终局明细（含花猪）。
 弃牌区：统一 `--discard-tile-*` 尺寸；最新弃牌高亮；左右牌面正向；桌心短提示。
 
 ### `meld-view.js`
-纯函数：副露来源横牌位（`getRelativeSourcePosition` / `buildMeldTilePlan`）、自家摸牌展示顺序。
+纯函数：副露来源位/标签/外凸（`getRelativeSourcePosition` / `getRelativeSourceTag` / `getMeldOwnerNudge` / `buildMeldTilePlan`）、自家摸牌展示顺序。
 
 ### `tiles.js`
 牌名与 SVG 牌面（**本轮禁止修改**）。

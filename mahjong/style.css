@@ -1018,7 +1018,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   align-items:flex-end;
   flex-wrap:wrap;
   gap:6px;
-  overflow:hidden;
+  overflow:visible;
   z-index:9;
   pointer-events:none;
 }
@@ -1027,16 +1027,19 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 .meld-bottom .meld-group{
   flex:0 0 auto;
+  padding-bottom:18px;
+}
+.meld-top .meld-group{
+  padding-top:18px;
+  padding-bottom:6px;
 }
 
-/* 左右副露：上下止点对称对家（top = band-top+10 / bottom = self-hand-band+safe+10） */
+/* 左右副露：上下止点对称对家；牌面全部正向竖放 */
 .meld-left,
 .meld-right{
-  overflow:visible;
-}
   top:calc(var(--band-top) + 10px);
   bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 10px);
-  width:var(--meld-rail);
+  width:max(var(--meld-rail),calc(var(--meld-tw) + 28px));
   max-height:none;
   transform:none;
   flex-direction:column;
@@ -1062,8 +1065,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 .meld-group{
   display:flex;
   align-items:center;
-  gap:4px;
-  padding:4px 5px;
+  gap:3px;
+  padding:10px 6px 6px;
   border-radius:8px;
   background:rgba(4,24,17,.82);
   border:1px solid rgba(255,255,255,.12);
@@ -1072,94 +1075,106 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   position:relative
 }
 .meld-badge{
-  position:absolute;top:1px;right:2px;
-  font-size:8px;line-height:1.1;font-weight:800;color:#f0e2b8;
-  background:rgba(0,0,0,.45);border-radius:4px;padding:1px 3px;
-  pointer-events:none;z-index:2;white-space:nowrap
+  position:absolute;top:2px;right:3px;
+  font-size:10px;line-height:1.1;font-weight:800;color:#f0e2b8;
+  background:rgba(0,0,0,.5);border-radius:4px;padding:1px 4px;
+  pointer-events:none;z-index:3;white-space:nowrap
 }
 .meld-group-angang{
   outline:1px dashed rgba(255,255,255,.22);
 }
 
-/* 副露牌槽：正常竖牌占位；来源横牌用槽位尺寸参与 flex，避免 transform 叠压 */
-.meld-tile{
+/* 副露牌：全部正向；来源牌外凸 + 外侧文字标签 */
+.meld-tile-wrap{
   flex:0 0 auto;
+  position:relative;
   display:grid;
   place-items:center;
   width:var(--meld-tw);
   height:var(--meld-th);
-  position:relative
+  padding:0;
+  box-sizing:content-box
 }
-.meld-tile .tile{
+.meld-tile-wrap .tile{
   width:var(--meld-tw);
   height:var(--meld-th);
   cursor:default;
   margin:0;
   transform:none!important;
 }
-.meld-tile-source{
-  width:var(--meld-th);
-  height:var(--meld-tw);
-  margin:0 2px
+.meld-tile-wrap.meld-source .tile{
+  box-shadow:
+    0 0 0 2px var(--gold),
+    0 4px 10px rgba(0,0,0,.35);
+  border-color:rgba(239,199,104,.8)!important;
+  z-index:1
 }
-.meld-tile-source .tile{
-  transform:rotate(90deg)!important;
+.meld-nudge-up{transform:translateY(-7px)}
+.meld-nudge-down{transform:translateY(7px)}
+.meld-nudge-left{transform:translateX(-7px)}
+.meld-nudge-right{transform:translateX(7px)}
+
+.meld-source-label{
+  position:absolute;
+  z-index:4;
+  min-width:1.15em;
+  padding:2px 5px;
+  border-radius:999px;
+  background:rgba(6,18,12,.92);
+  border:1px solid rgba(239,199,104,.75);
+  color:#ffe7a8;
+  font-size:clamp(13px,1.6vw,16px);
+  font-weight:850;
+  line-height:1.1;
+  text-align:center;
+  pointer-events:none;
+  box-shadow:0 2px 6px rgba(0,0,0,.35)
 }
-.meld-source-left .meld-tile-source{
-  transform:translateY(-4px)
+/* 标签放在牌桌外侧（相对拥有者），不挡牌面 */
+.meld-bottom .meld-source-label,
+.meld-nudge-up .meld-source-label{
+  top:calc(100% + 2px);
+  left:50%;
+  transform:translateX(-50%)
 }
-.meld-source-middle .meld-tile-source{
-  transform:translateY(-6px)
+.meld-top .meld-source-label,
+.meld-nudge-down .meld-source-label{
+  bottom:calc(100% + 2px);
+  left:50%;
+  transform:translateX(-50%)
 }
-.meld-source-right .meld-tile-source{
-  transform:translateY(-4px)
+.meld-left .meld-source-label,
+.meld-nudge-right .meld-source-label{
+  right:calc(100% + 2px);
+  top:50%;
+  left:auto;
+  transform:translateY(-50%)
+}
+.meld-right .meld-source-label,
+.meld-nudge-left .meld-source-label{
+  left:calc(100% + 2px);
+  top:50%;
+  transform:translateY(-50%)
 }
 
-/* 左右：组内竖排；普通牌朝向该家；来源牌相对组再横放（槽位吃尺寸） */
+/* 左右组：纵向排列，牌面仍正向（不旋转） */
 .meld-left .meld-group,
 .meld-right .meld-group{
   flex-direction:column;
   align-items:center;
-  gap:4px;
+  gap:3px;
+  padding:6px 12px;
   transform:none!important;
-  margin:0;
-  padding:5px 4px;
+  margin:0
 }
-
-.meld-left .meld-tile,
-.meld-right .meld-tile{
-  width:var(--meld-th);
-  height:var(--meld-tw);
-}
-.meld-left .meld-tile .tile{
-  transform:rotate(90deg)!important;
-}
-.meld-right .meld-tile .tile{
-  transform:rotate(-90deg)!important;
-}
-
-/* 左右来源牌：相对组内普通牌再转 90°，槽位改为竖向占位 */
-.meld-left .meld-tile-source,
-.meld-right .meld-tile-source{
+.meld-left .meld-tile-wrap,
+.meld-right .meld-tile-wrap{
   width:var(--meld-tw);
-  height:var(--meld-th);
-  margin:2px 0
+  height:var(--meld-th)
 }
-.meld-left .meld-tile-source .tile{
-  transform:none!important;
-}
-.meld-right .meld-tile-source .tile{
-  transform:rotate(180deg)!important;
-}
-.meld-left .meld-source-left .meld-tile-source,
-.meld-left .meld-source-middle .meld-tile-source,
-.meld-left .meld-source-right .meld-tile-source{
-  transform:translateX(-5px)
-}
-.meld-right .meld-source-left .meld-tile-source,
-.meld-right .meld-source-middle .meld-tile-source,
-.meld-right .meld-source-right .meld-tile-source{
-  transform:translateX(5px)
+.meld-left .meld-tile-wrap .tile,
+.meld-right .meld-tile-wrap .tile{
+  transform:none!important
 }
 
 /* 旧的 seat 内副露隐藏，防止重复和遮挡。 */
@@ -1306,14 +1321,14 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 
 /* 小屏副露 / 操作区（仅竖屏；横屏走 compact-landscape） */
 @media(max-width:600px) and (orientation:portrait){
-  .meld-tile .tile{
+  .meld-tile-wrap .tile{
     width:calc(var(--tile-w) * .46 * 1.1);
     height:calc(var(--tile-h) * .46 * 1.1);
   }
 
   .meld-left,
   .meld-right{
-    width:max(clamp(38px,11vw,56px),calc(var(--meld-tw) + 8px));
+    width:max(clamp(38px,11vw,56px),calc(var(--meld-tw) + 28px));
     gap:6px;
     overflow:visible;
   }
@@ -1904,9 +1919,12 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     padding: 3px;
     gap: 3px;
   }
-  .meld-tile .tile {
+  .meld-tile-wrap .tile {
     width: var(--meld-tw);
     height: var(--meld-th);
+  }
+  .meld-source-label {
+    font-size: 13px;
   }
 
   /* 操作栏：高于中央计数器，落在自己手牌带之上 */

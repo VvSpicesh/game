@@ -1,5 +1,13 @@
 # RELEASE NOTES
 
+## Platform v0.14.42
+
+**Service Worker**：`nocturne-games-v47`
+
+- 麻将副露来源改为正向外凸 +「上/对/下」标签（取消横牌）
+
+---
+
 ## Platform v0.14.41
 
 **Service Worker**：`nocturne-games-v46`

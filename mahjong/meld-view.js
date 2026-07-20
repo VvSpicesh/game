@@ -19,7 +19,34 @@ export function getRelativeSourcePosition(ownerIndex,fromPlayerIndex){
   return null;
 }
 
-/** @deprecated 保留供旧测试；副露 UI 已改用来源横牌 */
+/**
+ * 相对来源短标签：上 / 对 / 下
+ * @returns {"上"|"对"|"下"|null}
+ */
+export function getRelativeSourceTag(ownerIndex,fromPlayerIndex){
+  if(!Number.isInteger(ownerIndex)||ownerIndex<0||ownerIndex>3)return null;
+  if(!Number.isInteger(fromPlayerIndex)||fromPlayerIndex<0||fromPlayerIndex>3)return null;
+  if(fromPlayerIndex===ownerIndex)return null;
+  const diff=(fromPlayerIndex-ownerIndex+4)%4;
+  if(diff===1)return "上";
+  if(diff===2)return "对";
+  if(diff===3)return "下";
+  return null;
+}
+
+/**
+ * 副露拥有者朝向牌桌中央的外凸方向（不写死座位 CSS）
+ * @returns {"up"|"down"|"left"|"right"|null}
+ */
+export function getMeldOwnerNudge(ownerSeat){
+  if(ownerSeat===0)return "up";
+  if(ownerSeat===1)return "right";
+  if(ownerSeat===2)return "down";
+  if(ownerSeat===3)return "left";
+  return null;
+}
+
+/** @deprecated 兼容旧测试 */
 export function relativeSeatDirection(viewerSeat,sourceSeat){
   const pos=getRelativeSourcePosition(viewerSeat,sourceSeat);
   if(pos==="left")return "←";
@@ -54,16 +81,9 @@ function sourceSlotIndex(position,count){
 }
 
 /**
- * 副露牌展示计划：哪一张横放、是否显示补杠标记
+ * 副露牌展示计划：来源位 / 短标签 / 外凸方向（全部正向竖放）
  * @param {object|null|undefined} meld
  * @param {number} ownerSeat
- * @returns {{
- *   items:{tile:object|null,isSource:boolean,face:"show"|"back"}[],
- *   sourcePosition:"left"|"middle"|"right"|null,
- *   badge:string|null,
- *   title:string,
- *   sourceLabel:string
- * }}
  */
 export function buildMeldTilePlan(meld,ownerSeat){
   const type=String(meld?.type||"");
@@ -76,15 +96,18 @@ export function buildMeldTilePlan(meld,ownerSeat){
     anGang:"暗杠",
     buGang:"补杠"
   }[type]||type||"副露";
+  const ownerNudge=getMeldOwnerNudge(ownerSeat);
 
   if(type==="anGang"){
     return {
       items:tiles.map((tile,tileIndex)=>({
         tile,
         isSource:false,
+        sourceTag:null,
         face:ownerSeat===0&&tileIndex===tiles.length-1?"show":"back"
       })),
       sourcePosition:null,
+      ownerNudge,
       badge:null,
       title,
       sourceLabel:""
@@ -95,14 +118,19 @@ export function buildMeldTilePlan(meld,ownerSeat){
     (type==="peng"||type==="mingGang"||type==="buGang")&&from!=null
       ?getRelativeSourcePosition(ownerSeat,from)
       :null;
+  const sourceTag=
+    (type==="peng"||type==="mingGang"||type==="buGang")&&from!=null
+      ?getRelativeSourceTag(ownerSeat,from)
+      :null;
 
   if(!position||tiles.length<2){
     return {
-      items:tiles.map(tile=>({tile,isSource:false,face:"show"})),
+      items:tiles.map(tile=>({tile,isSource:false,sourceTag:null,face:"show"})),
       sourcePosition:null,
+      ownerNudge,
       badge:type==="buGang"?"补":null,
       title,
-      sourceLabel:position?sourceLabel:""
+      sourceLabel:""
     };
   }
 
@@ -112,13 +140,17 @@ export function buildMeldTilePlan(meld,ownerSeat){
   const sourceTile=pool.shift();
   const items=[];
   for(let i=0;i<n;i++){
-    if(i===sourceIndex)items.push({tile:sourceTile,isSource:true,face:"show"});
-    else items.push({tile:pool.shift(),isSource:false,face:"show"});
+    if(i===sourceIndex){
+      items.push({tile:sourceTile,isSource:true,sourceTag,face:"show"});
+    }else{
+      items.push({tile:pool.shift(),isSource:false,sourceTag:null,face:"show"});
+    }
   }
 
   return {
     items,
     sourcePosition:position,
+    ownerNudge,
     badge:type==="buGang"?"补":null,
     title,
     sourceLabel
@@ -136,7 +168,8 @@ export function meldDisplayInfo(meld,ownerSeat){
     badge:plan.badge,
     title:plan.title,
     sourceLabel:plan.sourceLabel,
-    sourcePosition:plan.sourcePosition
+    sourcePosition:plan.sourcePosition,
+    ownerNudge:plan.ownerNudge
   };
 }
 

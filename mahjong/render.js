@@ -1,6 +1,6 @@
 import {tileFace,tileName} from "./tiles.js?v=0.14.24";
 import {getLegalDiscardIndexes,SUIT_LABEL} from "./rules-guard.js";
-import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.40";
+import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.42";
 
 const SEAT_LABELS=["自己","上家","对家","下家"];
 
@@ -197,9 +197,7 @@ export function renderMelds(state){
       const plan=buildMeldTilePlan(meld,index);
       const group=document.createElement("div");
       group.className="meld-group"+(meld.type==="anGang"?" meld-group-angang":"");
-      if(plan.sourcePosition){
-        group.classList.add(`meld-source-${plan.sourcePosition}`);
-      }
+      if(plan.sourcePosition)group.classList.add(`meld-source-${plan.sourcePosition}`);
       group.title=plan.badge?`${plan.title} · ${plan.badge}`:plan.title;
       if(plan.sourceLabel)group.title+=` · ${plan.sourceLabel}`;
 
@@ -211,16 +209,26 @@ export function renderMelds(state){
       }
 
       plan.items.forEach(item=>{
-        const slot=document.createElement("div");
-        slot.className="meld-tile";
-        if(item.isSource)slot.classList.add("meld-tile-source");
+        const wrap=document.createElement("div");
+        wrap.className="meld-tile-wrap";
+        if(item.isSource){
+          wrap.classList.add("meld-source");
+          if(plan.ownerNudge)wrap.classList.add(`meld-nudge-${plan.ownerNudge}`);
+        }
+
+        if(item.isSource&&item.sourceTag){
+          const label=document.createElement("span");
+          label.className="meld-source-label";
+          label.textContent=item.sourceTag;
+          wrap.appendChild(label);
+        }
 
         const tileEl=
           item.face==="back"
             ?createTileElement(null,"tile-small")
             :createTileElement(item.tile,"tile-small");
-        slot.appendChild(tileEl);
-        group.appendChild(slot);
+        wrap.appendChild(tileEl);
+        group.appendChild(wrap);
       });
 
       zone.appendChild(group);
