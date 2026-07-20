@@ -34,6 +34,11 @@ import {
   buildMeldTilePlan,
   buildSelfHandDisplayOrder
 } from "./meld-view.js";
+import {
+  getPlayerDisplayName,
+  getRelativeSeatLabel,
+  isValidPlayerName
+} from "./player-name.js";
 
 function T(s,n,id=0){return {s,n,id};}
 function tiles(pairs,startId=1){
@@ -668,6 +673,25 @@ export function runRuleTests(){
     const order=buildSelfHandDisplayOrder(hand,"d");
     assert(order[order.length-1].tile.id==="d"&&order[order.length-1].isDraw);
     assert(order[0].tile.id==="p"&&order[1].tile.id==="q");
+  });
+
+  record("PN1","有名字优先显示名字","trim 后有效",()=>{
+    const players=[{name:"小美"},{name:" 阿强 "},{name:""},{name:"   "}];
+    assert(getPlayerDisplayName(0,0,players)==="小美");
+    assert(getPlayerDisplayName(1,0,players)==="阿强");
+    assert(getPlayerDisplayName(2,0,players)==="对家");
+    assert(getPlayerDisplayName(3,0,players)==="下家");
+    assert(!isValidPlayerName(""));
+    assert(!isValidPlayerName("  "));
+    assert(isValidPlayerName("小美"));
+  });
+
+  record("PN2","相对方位与 viewer","左=上家",()=>{
+    assert(getRelativeSeatLabel(0,0)==="自己");
+    assert(getRelativeSeatLabel(1,0)==="上家");
+    assert(getRelativeSeatLabel(2,0)==="对家");
+    assert(getRelativeSeatLabel(3,0)==="下家");
+    assert(getRelativeSeatLabel(0,1)==="下家");
   });
 
   block("UI1","换三张/定缺弹层/大按钮/飘字/二次点击出牌","交互与动画正常","需人工点选；套件未驱动完整 UI");

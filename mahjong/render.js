@@ -1,12 +1,26 @@
 import {tileFace,tileName} from "./tiles.js?v=0.14.24";
 import {getLegalDiscardIndexes,SUIT_LABEL} from "./rules-guard.js";
 import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.42";
-import {showGameToast} from "../shared/game-toast.js";
+import {
+  RELATIVE_SEAT_LABELS,
+  getPlayerDisplayName,
+  isValidPlayerName
+} from "./player-name.js?v=0.14.46";
 
-const SEAT_LABELS=["自己","上家","对家","下家"];
+const SEAT_LABELS=RELATIVE_SEAT_LABELS;
+const SEAT_SIDE=["bottom","left","top","right"];
+const EVENT_PRIORITY={
+  discard:1,
+  peng:2,
+  mingGang:2,
+  anGang:2,
+  buGang:2,
+  hu:3
+};
 
-function seatDisplayName(index,name){
-  return name?`${SEAT_LABELS[index]} ${name}`:SEAT_LABELS[index];
+function seatDisplayName(index,name,players){
+  if(players)return getPlayerDisplayName(index,0,players);
+  return isValidPlayerName(name)?name.trim():SEAT_LABELS[index];
 }
 
 function wait(ms){
@@ -37,10 +51,10 @@ export function renderGame(state,handlers){
   document.getElementById("phase").textContent=state.phase;
   const turnIndex=state.turn;
   const turnName=state.players[turnIndex]
-    ?seatDisplayName(turnIndex,state.players[turnIndex].name)
+    ?seatDisplayName(turnIndex,state.players[turnIndex].name,state.players)
     :"—";
   const dealerName=state.players[state.dealer]
-    ?seatDisplayName(state.dealer,state.players[state.dealer].name)
+    ?seatDisplayName(state.dealer,state.players[state.dealer].name,state.players)
     :"—";
   document.getElementById("turn").textContent=
     state.phase==="开局"?`庄：${dealerName}`:`轮到：${turnName}`;
@@ -71,7 +85,7 @@ function renderScores(state){
     row.className="score-row"+(scores[index]<0?" score-row-neg":"");
     const delta=deltas[index]||0;
     row.innerHTML=`
-      <div class="score-name">${seatDisplayName(index,player.name)}${player.won?'<span class="score-won">已胡</span>':""}</div>
+      <div class="score-name">${seatDisplayName(index,player.name,state.players)}${player.won?'<span class="score-won">已胡</span>':""}</div>
       <div class="score-total">${scores[index]}</div>
       <div class="score-delta">${delta>0?"+"+delta:String(delta)}</div>
     `;
@@ -276,26 +290,257 @@ function renderDiscards(state){
       });
   }
 
-  updateDiscardCue(latest,shouldAnimate);
+  updateDiscardCue(latest,shouldAnimate,state.players);
 }
 
 let lastDiscardCueKey="";
+let activePlayerEvent=null;
+let activePlayerEventTimer=0;
+let activePlayerEventRaf=0;
+let activePlayerEventPriority=0;
 
-function updateDiscardCue(latest,animate){
-  /* 自己出牌默认不弹；连续出牌直接替换（showGameToast 内单例） */
-  if(!latest?.tile||!animate||latest.player===0)return;
+function clearPlayerEventTimers(){
+  if(activePlayerEventTimer){
+    clearTimeout(activePlayerEventTimer);
+    activePlayerEventTimer=0;
+  }
+  if(activePlayerEventRaf){
+    cancelAnimationFrame(activePlayerEventRaf);
+    activePlayerEventRaf=0;
+  }
+}
+
+/** 立即移除当前座位事件提示（无动画） */
+export function clearPlayerEvent(){
+  clearPlayerEventTimers();
+  if(activePlayerEvent?.parentNode)activePlayerEvent.remove();
+  activePlayerEvent=null;
+  activePlayerEventPriority=0;
+}
+
+function dismissPlayerEvent(){
+  clearPlayerEventTimers();
+  const el=activePlayerEvent;
+  if(!el)return;
+  el.classList.remove("is-show");
+  el.classList.add("is-hide");
+  const done=()=>{
+    if(activePlayerEvent===el){
+      el.remove();
+      activePlayerEvent=null;
+      activePlayerEventPriority=0;
+    }
+  };
+  el.addEventListener("transitionend",done,{once:true});
+  setTimeout(done,220);
+}
+
+function buildPlayerEventCopy({
+  action,
+  playerIndex,
+  sourcePlayerIndex=null,
+  sourcePengFrom=null,
+  tile=null,
+  players=[],
+  viewerIndex=0
+}){
+  const actor=getPlayerDisplayName(playerIndex,viewerIndex,players);
+  const tileLabel=tile?tileName(tile):"";
+  const source=
+    sourcePlayerIndex==null
+      ?null
+      :getPlayerDisplayName(sourcePlayerIndex,viewerIndex,players);
+  const pengSource=
+    sourcePengFrom==null
+      ?null
+      :getPlayerDisplayName(sourcePengFrom,viewerIndex,players);
+
+  switch(action){
+    case "discard":
+      return{name:actor,actionWord:"打出",tileLabel,detail:null,tone:"discard"};
+    case "peng":
+      return{
+        name:actor,
+        actionWord:"碰",
+        tileLabel,
+        detail:source?`来源：${source} · ${tileLabel}`:tileLabel||null,
+        tone:"claim"
+      };
+    case "mingGang":
+      return{
+        name:actor,
+        actionWord:"直杠",
+        tileLabel,
+        detail:source?`来源：${source} · ${tileLabel}`:tileLabel||null,
+        tone:"claim"
+      };
+    case "anGang":
+      return{name:actor,actionWord:"暗杠",tileLabel,detail:null,tone:"claim"};
+    case "buGang":
+      return{
+        name:actor,
+        actionWord:"补杠",
+        tileLabel,
+        detail:pengSource?`原碰来源：${pengSource}`:null,
+        tone:"claim"
+      };
+    case "hu":
+      return{name:actor,actionWord:"胡",tileLabel,detail:null,tone:"hu"};
+    default:
+      return{name:actor,actionWord:String(action||""),tileLabel,detail:null,tone:"claim"};
+  }
+}
+
+/**
+ * 座位锚定的事件提示（单例替换）。
+ * @param {object} options
+ * @param {number} options.playerIndex 事件主角（出牌者 / 碰杠者 / 胡者）
+ * @param {"discard"|"peng"|"mingGang"|"anGang"|"buGang"|"hu"} options.action
+ * @param {object|null} [options.tile]
+ * @param {number|null} [options.sourcePlayerIndex] 碰/直杠的出牌来源
+ * @param {number|null} [options.sourcePengFrom] 补杠原碰来源
+ * @param {Array} [options.players]
+ * @param {number} [options.viewerIndex=0]
+ * @param {number} [options.duration]
+ * @param {string} [options.scoreText]
+ * @param {boolean} [options.showSelfDiscard=false]
+ */
+export function showPlayerEvent(options={}){
+  const playerIndex=Number(options.playerIndex);
+  const action=options.action||"discard";
+  if(!Number.isInteger(playerIndex)||playerIndex<0||playerIndex>3)return;
+
+  if(action==="discard"&&playerIndex===0&&!options.showSelfDiscard)return;
+
+  const priority=EVENT_PRIORITY[action]||1;
+  if(activePlayerEvent&&priority<activePlayerEventPriority)return;
+
   const table=document.querySelector(".table");
   if(!table)return;
-  const seat=SEAT_LABELS[latest.player]||"玩家";
-  const name=tileName(latest.tile);
-  const media=createTileElement(latest.tile,"ng-game-toast-tile");
-  showGameToast({
-    host:table,
-    label:`${seat}打出：`,
-    value:name,
-    media,
-    durationMs:1500,
-    progress:true
+
+  const players=options.players||[];
+  const viewerIndex=Number.isInteger(options.viewerIndex)?options.viewerIndex:0;
+  const duration=Math.max(
+    400,
+    Number(options.duration)||(action==="discard"?1400:2200)
+  );
+  const copy=buildPlayerEventCopy({
+    action,
+    playerIndex,
+    sourcePlayerIndex:options.sourcePlayerIndex??null,
+    sourcePengFrom:options.sourcePengFrom??null,
+    tile:options.tile||null,
+    players,
+    viewerIndex
+  });
+  const side=SEAT_SIDE[playerIndex]||"bottom";
+
+  clearPlayerEvent();
+
+  const el=document.createElement("div");
+  el.className=`player-event-toast player-event-${side} player-event-${copy.tone}`;
+  el.setAttribute("role","status");
+  el.setAttribute("aria-live","polite");
+
+  const row=document.createElement("div");
+  row.className="player-event-row";
+
+  const nameEl=document.createElement("span");
+  nameEl.className="player-event-name";
+  nameEl.textContent=copy.name;
+  row.appendChild(nameEl);
+
+  const actionEl=document.createElement("span");
+  actionEl.className="player-event-action";
+  actionEl.textContent=copy.actionWord;
+  row.appendChild(actionEl);
+
+  if(copy.tileLabel&&(action==="discard"||action==="anGang"||action==="buGang"||action==="hu")){
+    const tileNameEl=document.createElement("span");
+    tileNameEl.className="player-event-tile-name";
+    tileNameEl.textContent=copy.tileLabel;
+    row.appendChild(tileNameEl);
+  }
+
+  if(options.tile){
+    const mini=document.createElement("div");
+    mini.className="player-event-mini-tile";
+    mini.appendChild(createTileElement(options.tile,"tile-event-mini"));
+    row.appendChild(mini);
+  }
+
+  el.appendChild(row);
+
+  if(copy.detail){
+    const detail=document.createElement("div");
+    detail.className="player-event-detail";
+    detail.textContent=copy.detail;
+    el.appendChild(detail);
+  }
+
+  if(options.scoreText){
+    const score=document.createElement("div");
+    score.className="player-event-score";
+    score.textContent=options.scoreText;
+    el.appendChild(score);
+  }
+
+  if(action==="discard"){
+    const bar=document.createElement("div");
+    bar.className="player-event-progress";
+    bar.setAttribute("aria-hidden","true");
+    const fill=document.createElement("i");
+    fill.style.animationDuration=`${duration}ms`;
+    bar.appendChild(fill);
+    el.appendChild(bar);
+  }
+
+  table.appendChild(el);
+  activePlayerEvent=el;
+  activePlayerEventPriority=priority;
+
+  activePlayerEventRaf=requestAnimationFrame(()=>{
+    activePlayerEventRaf=0;
+    el.classList.add("is-show");
+  });
+
+  activePlayerEventTimer=setTimeout(()=>{
+    activePlayerEventTimer=0;
+    dismissPlayerEvent();
+  },duration);
+}
+
+function updateDiscardCue(latest,animate,players){
+  if(!latest?.tile||!animate)return;
+  showPlayerEvent({
+    playerIndex:latest.player,
+    action:"discard",
+    tile:latest.tile,
+    players:players||[],
+    duration:1400
+  });
+}
+
+/**
+ * 兼容旧调用：碰/杠/胡座位飘字 → 统一走 showPlayerEvent
+ */
+export function showPlayerActionEffect(playerIndex,actionName,tile,scoreText=""){
+  const map={
+    碰:"peng",
+    杠:"mingGang",
+    明杠:"mingGang",
+    直杠:"mingGang",
+    暗杠:"anGang",
+    补杠:"buGang",
+    胡:"hu"
+  };
+  showPlayerEvent({
+    playerIndex,
+    action:map[actionName]||actionName||"peng",
+    tile:tile||null,
+    scoreText:scoreText||"",
+    players:[],
+    duration:2200
   });
 }
 
@@ -412,48 +657,6 @@ export function hideReaction(){
   const buttonBox=document.getElementById("actionDockButtons");
   dock.classList.remove("show");
   buttonBox.innerHTML="";
-}
-
-/**
- * Non-blocking floating cue near a player seat.
- * Does not pause game flow.
- */
-export function showPlayerActionEffect(playerIndex,actionName,tile,scoreText=""){
-  const table=document.querySelector(".table");
-  if(!table)return;
-
-  const sides=["bottom","left","top","right"];
-  const el=document.createElement("div");
-  el.className=`player-action-effect player-action-${sides[playerIndex]||"bottom"}`;
-  el.setAttribute("aria-hidden","true");
-
-  const label=document.createElement("div");
-  label.className="effect-label";
-  label.textContent=actionName;
-  el.appendChild(label);
-
-  if(scoreText){
-    const score=document.createElement("div");
-    score.className="effect-score";
-    score.textContent=scoreText;
-    el.appendChild(score);
-  }
-
-  if(tile){
-    const tileWrap=document.createElement("div");
-    tileWrap.className="effect-tile";
-    tileWrap.appendChild(createTileElement(tile,"tile-effect"));
-    el.appendChild(tileWrap);
-  }
-
-  table.appendChild(el);
-
-  const cleanup=()=>{
-    if(el.parentNode)el.remove();
-  };
-
-  el.addEventListener("animationend",cleanup,{once:true});
-  window.setTimeout(cleanup,3200);
 }
 
 export function showWin(headline,info,onContinue,mannerNote="",winTile=null){
@@ -602,7 +805,7 @@ export function renderRoundReveal(state,settlement,handlers={}){
     head.className="reveal-seat-head";
     head.innerHTML=`
       <div class="reveal-seat-top">
-        <div class="reveal-seat-name">${seatDisplayName(index,player.name)}</div>
+        <div class="reveal-seat-name">${seatDisplayName(index,player.name,state.players)}</div>
         <div class="reveal-seat-tags">${
           tags.map(([text,cls])=>`<span class="reveal-tag ${cls}">${text}</span>`).join("")
         }</div>

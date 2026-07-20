@@ -1,4 +1,4 @@
-import {renderGame,renderLog,renderExchange,showReaction,hideReaction,showWin,renderRoundReveal,hideRoundReveal,showPlayerActionEffect,playDiceAnimation,flashDealCaption,clearDealCaption,hideStartOverlay,showLobby,showMissingSuitModal,hideMissingSuitModal} from "./render.js";
+import {renderGame,renderLog,renderExchange,showReaction,hideReaction,showWin,renderRoundReveal,hideRoundReveal,showPlayerEvent,playDiceAnimation,flashDealCaption,clearDealCaption,hideStartOverlay,showLobby,showMissingSuitModal,hideMissingSuitModal} from "./render.js";
 import {saveState,loadState,clearState} from "./storage.js";
 import {loadRules,saveRules,loadLastDealer,saveLastDealer,loadNames,saveNames,defaultRules,mergeDeep,normalizeSettlementRules} from "./config.js";
 import {tileName} from "./tiles.js";
@@ -26,6 +26,7 @@ import {
   roundSummary
 } from "./score.js";
 import {runRuleTests} from "./rule-tests.js";
+import {getPlayerDisplayName} from "./player-name.js?v=0.14.46";
 import {mountHeader} from "../shared/header.js";
 import {
   initAudio,
@@ -48,7 +49,6 @@ function snapshotRules(source=rules){
 
 let names=loadNames();
 /* 相对自己：左=上家，上=对家，右=下家 */
-const seatLabels=["自己","上家","对家","下家"];
 const AI_THINK_MS=1000;
 let rules=loadRules();
 let state=loadState();
@@ -62,13 +62,11 @@ function wait(ms){
 }
 
 function seatWho(playerIndex){
-  const name=state.players[playerIndex].name;
-  return name?`${seatLabels[playerIndex]} ${name}`:seatLabels[playerIndex];
+  return getPlayerDisplayName(playerIndex,0,state.players);
 }
 
 function playerCall(playerIndex){
-  const name=state.players[playerIndex]?.name;
-  return name||seatLabels[playerIndex];
+  return getPlayerDisplayName(playerIndex,0,state.players);
 }
 
 function formatWinLine(playerIndex,fanName){
@@ -652,7 +650,14 @@ function claimPeng(playerIndex,tile,fromPlayer){
   state.lastAction={type:"peng",player:playerIndex};
   state.logs.push(`${playerCall(playerIndex)}碰 ${tileName(tile)}。`);
   commit();
-  showPlayerActionEffect(playerIndex,"碰",tile);
+  showPlayerEvent({
+    playerIndex,
+    action:"peng",
+    tile,
+    sourcePlayerIndex:fromPlayer,
+    players:state.players,
+    duration:2200
+  });
   speakAction("碰");
 
   if(playerIndex!==0)scheduleAiDiscard();
@@ -675,7 +680,15 @@ function claimMingGang(playerIndex,tile,fromPlayer){
   const settled=settleMingGang(state,playerIndex,fromPlayer);
   state.logs.push(settled?`${playerCall(playerIndex)}杠 ${tileName(tile)} · ${settled.logText}`:`${playerCall(playerIndex)}杠 ${tileName(tile)}。`);
   commit();
-  showPlayerActionEffect(playerIndex,"杠",tile,settled?formatPoints(settled.pts):"");
+  showPlayerEvent({
+    playerIndex,
+    action:"mingGang",
+    tile,
+    sourcePlayerIndex:fromPlayer,
+    players:state.players,
+    scoreText:settled?formatPoints(settled.pts):"",
+    duration:2200
+  });
   speakAction("杠");
   drawSupplement(playerIndex);
 }
@@ -695,12 +708,14 @@ function doConcealedGang(playerIndex,entry){
       :`${playerCall(playerIndex)}暗杠 ${tileName(entry.tile)}。`
   );
   commit();
-  showPlayerActionEffect(
+  showPlayerEvent({
     playerIndex,
-    "暗杠",
-    null,
-    settled?formatPoints(settled.deltas[playerIndex]):""
-  );
+    action:"anGang",
+    tile:entry.tile,
+    players:state.players,
+    scoreText:settled?formatPoints(settled.deltas[playerIndex]):"",
+    duration:2200
+  });
   speakAction("杠");
   drawSupplement(playerIndex);
 }
@@ -745,12 +760,15 @@ function completeAddedGang(playerIndex,entry){
       :`${playerCall(playerIndex)}补杠 ${tileName(entry.tile)}。`
   );
   commit();
-  showPlayerActionEffect(
+  showPlayerEvent({
     playerIndex,
-    "补杠",
-    entry.tile,
-    settled?formatPoints(settled.deltas[playerIndex]):""
-  );
+    action:"buGang",
+    tile:entry.tile,
+    sourcePengFrom:Number.isInteger(entry.meld?.from)?entry.meld.from:null,
+    players:state.players,
+    scoreText:settled?formatPoints(settled.deltas[playerIndex]):"",
+    duration:2200
+  });
   speakAction("杠");
   drawSupplement(playerIndex);
 }
@@ -811,7 +829,14 @@ function declareSelfWin(playerIndex,info){
     `${formatWinHeadline(playerIndex,info.name,manner)} · ${settled.fan}番 ${formatPoints(settled.deltas[playerIndex])}。`
   );
   state.lastAction={type:"win",player:playerIndex,kind:"self",manner};
-  showPlayerActionEffect(playerIndex,"胡",winTile,formatPoints(settled.deltas[playerIndex]));
+  showPlayerEvent({
+    playerIndex,
+    action:"hu",
+    tile:winTile,
+    players:state.players,
+    scoreText:formatPoints(settled.deltas[playerIndex]),
+    duration:2400
+  });
   speakCurrentWin({
     manner,
     winners:[playerIndex],
@@ -890,7 +915,15 @@ function declareDiscardWins(winChecks,tile,fromPlayer){
       `${formatWinHeadline(index,winInfos[i].name,manner)}（${seatWho(fromPlayer)} 放炮）`+
       ` · ${settled.fans[i]}番 ${formatPoints(settled.deltas[index])} · 胡 ${tileName(tile)}。`
     );
-    showPlayerActionEffect(index,"胡",tile,formatPoints(settled.deltas[index]));
+    showPlayerEvent({
+      playerIndex:index,
+      action:"hu",
+      tile,
+      sourcePlayerIndex:fromPlayer,
+      players:state.players,
+      scoreText:formatPoints(settled.deltas[index]),
+      duration:2400
+    });
   });
 
   state.lastAction={type:"win",players:winners,kind:"discard",from:fromPlayer,manner};
@@ -958,7 +991,15 @@ function declareRobGangWins(winners,tile,fromPlayer){
       `${formatWinHeadline(index,winInfos[i].name,"抢杠胡")}（抢 ${seatWho(fromPlayer)}）`+
       ` · ${settled.fans[i]}番 ${formatPoints(settled.deltas[index])} · 胡 ${tileName(tile)}。`
     );
-    showPlayerActionEffect(index,"胡",tile,formatPoints(settled.deltas[index]));
+    showPlayerEvent({
+      playerIndex:index,
+      action:"hu",
+      tile,
+      sourcePlayerIndex:fromPlayer,
+      players:state.players,
+      scoreText:formatPoints(settled.deltas[index]),
+      duration:2400
+    });
   });
 
   speakCurrentWin({

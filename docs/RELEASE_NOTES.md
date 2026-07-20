@@ -1,5 +1,13 @@
 # RELEASE NOTES
 
+## Platform v0.14.46
+
+**Service Worker**：`nocturne-games-v51`
+
+- 麻将事件提示锚定座位，文案优先玩家名字
+
+---
+
 ## Platform v0.14.45
 
 **Service Worker**：`nocturne-games-v50`

@@ -494,7 +494,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   }
 }
 
-/* 中央出牌 Toast 已迁至 shared/game-toast.js（.ng-game-toast） */
+/* 中央出牌 Toast 已改为座位锚定 .player-event-toast */
 
 .table-center{
   position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);
@@ -1232,76 +1232,155 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   min-width:88px;
 }
 
-/* 他家操作飘字（非阻塞）。 */
-.player-action-effect{
+/* 座位锚定事件提示（出牌 / 碰 / 杠 / 胡，单例） */
+.player-event-toast{
   position:absolute;
-  z-index:35;
+  z-index:36;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  max-width:min(240px,46%);
+  padding:8px 12px 7px;
+  border-radius:14px;
+  background:rgba(4,22,16,.92);
+  border:1px solid rgba(239,199,104,.42);
+  box-shadow:0 10px 22px rgba(0,0,0,.34);
+  color:#f5fff8;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .15s ease,transform .15s ease
+}
+.player-event-toast.is-show{opacity:1}
+.player-event-toast.is-hide{opacity:0;transition:opacity .18s ease}
+.player-event-row{
   display:flex;
   align-items:center;
-  gap:8px;
-  padding:8px 12px;
-  border-radius:14px;
-  background:rgba(4,22,16,.9);
-  border:1px solid rgba(239,199,104,.45);
-  box-shadow:0 10px 24px rgba(0,0,0,.35);
-  pointer-events:none;
-  animation:playerActionFloat 3s ease forwards;
+  flex-wrap:wrap;
+  gap:6px 8px;
+  min-width:0;
+  line-height:1.2
 }
-.player-action-effect .effect-label{
-  font-size:clamp(22px,3vw,34px);
-  font-weight:950;
-  color:#f6e7b2;
-  line-height:1;
+.player-event-name{
+  font-weight:900;
+  color:#ffe9b0;
+  font-size:clamp(14px,2.1vw,18px)
 }
-.player-action-effect .effect-tile{
+.player-event-action{
+  font-weight:750;
+  color:#e8f6ec;
+  font-size:clamp(13px,1.9vw,16px)
+}
+.player-event-tile-name{
+  font-weight:850;
+  color:#fff;
+  font-size:clamp(14px,2.1vw,18px)
+}
+.player-event-mini-tile{
+  flex:0 0 auto;
   line-height:0;
+  margin-left:2px
 }
-.player-action-effect .tile-effect,
-.player-action-effect .tile{
-  width:clamp(34px,4vw,46px);
-  height:calc(clamp(34px,4vw,46px) * 1.42);
-  cursor:default;
+.player-event-mini-tile .tile,
+.player-event-mini-tile .tile-event-mini{
+  width:22px;
+  height:calc(22px * 1.42);
+  margin:0!important;
   transform:none!important;
-  margin:0;
+  box-shadow:none!important;
+  cursor:default
 }
-.player-action-bottom{
+.player-event-detail{
+  font-size:clamp(11px,1.5vw,13px);
+  font-weight:650;
+  color:rgba(245,255,248,.82);
+  line-height:1.25
+}
+.player-event-score{
+  font-size:clamp(12px,1.6vw,14px);
+  font-weight:850;
+  color:#9dffc0
+}
+.player-event-progress{
+  width:100%;
+  height:2px;
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+  overflow:hidden;
+  margin-top:2px
+}
+.player-event-progress > i{
+  display:block;
+  height:100%;
+  width:100%;
+  border-radius:inherit;
+  background:rgba(255,255,255,.4);
+  transform-origin:left center;
+  animation:playerEventProgress linear forwards
+}
+@keyframes playerEventProgress{
+  from{transform:scaleX(1)}
+  to{transform:scaleX(0)}
+}
+
+/* 出牌：更轻量 */
+.player-event-discard{
+  padding:7px 10px 6px;
+  border-color:rgba(255,255,255,.16);
+  box-shadow:0 8px 18px rgba(0,0,0,.28)
+}
+.player-event-discard .player-event-name{font-size:clamp(13px,1.9vw,16px)}
+.player-event-discard .player-event-action{font-size:clamp(12px,1.7vw,14px)}
+.player-event-discard .player-event-tile-name{font-size:clamp(13px,1.9vw,16px)}
+.player-event-discard .player-event-mini-tile .tile{
+  width:18px;
+  height:calc(18px * 1.42)
+}
+
+/* 碰杠：略强调动作字 */
+.player-event-claim .player-event-action{
+  font-size:clamp(16px,2.4vw,22px);
+  font-weight:950;
+  color:#f6e7b2
+}
+.player-event-hu .player-event-action{
+  font-size:clamp(18px,2.6vw,26px);
+  font-weight:950;
+  color:#ffe29a
+}
+
+/* 四座位：牌桌内侧，朝中央 */
+.player-event-bottom{
   left:50%;
   bottom:calc(var(--band-bottom) + 56px);
-  transform:translateX(-50%);
+  transform:translate(-50%,8px)
 }
-.player-action-top{
+.player-event-bottom.is-show{transform:translate(-50%,0)}
+.player-event-top{
   left:50%;
-  top:calc(var(--band-top) + 40px);
-  transform:translateX(-50%);
+  top:calc(var(--band-top) + 44px);
+  transform:translate(-50%,-8px)
 }
-.player-action-left{
-  left:22%;
-  top:42%;
-  transform:translateY(-50%);
+.player-event-top.is-show{transform:translate(-50%,0)}
+.player-event-left{
+  left:max(12%,calc(var(--band-side) + var(--meld-rail,48px) + 10px));
+  top:46%;
+  transform:translate(8px,-50%)
 }
-.player-action-right{
-  right:22%;
-  top:42%;
-  transform:translateY(-50%);
+.player-event-left.is-show{transform:translate(0,-50%)}
+.player-event-right{
+  right:max(12%,calc(var(--band-side) + var(--meld-rail,48px) + 10px));
+  top:46%;
+  transform:translate(-8px,-50%)
 }
+.player-event-right.is-show{transform:translate(0,-50%)}
+
+/* 旧 class 保留，避免残留引用报错 */
+.player-action-effect{display:none!important}
 @keyframes playerActionFloat{
-  0%{
-    opacity:0;
-    filter:blur(.4px);
-  }
-  8%{
-    opacity:1;
-    filter:blur(0);
-  }
-  78%{
-    opacity:1;
-    margin-top:0;
-  }
-  100%{
-    opacity:0;
-    margin-top:-20px;
-  }
+  0%{opacity:0}
+  100%{opacity:0}
 }
+
 
 /* 小屏副露 / 操作区（仅竖屏；横屏走 compact-landscape） */
 @media(max-width:600px) and (orientation:portrait){
@@ -1329,9 +1408,10 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     height:calc(clamp(40px,11vw,50px) * 1.42);
   }
 
-  .player-action-left{left:calc(var(--band-side) + 12%)}
-  .player-action-right{right:calc(var(--band-side) + 12%)}
-  .player-action-bottom{bottom:calc(var(--band-bottom) + 48px)}
+  .player-event-left{left:calc(var(--band-side) + 10%)}
+  .player-event-right{right:calc(var(--band-side) + 10%)}
+  .player-event-bottom{bottom:calc(var(--band-bottom) + 48px)}
+  .player-event-top{top:calc(var(--band-top) + 36px)}
 }
 
 /* 平板 / 折叠（<1300）副露轨 */
@@ -1938,18 +2018,18 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     height: calc(clamp(28px, 4vh, 40px) * 1.42);
   }
 
-  .player-action-top {
-    top: 23%;
+  .player-event-top {
+    top: 24%;
   }
-  .player-action-bottom {
+  .player-event-bottom {
     bottom: calc(24% + 8px);
   }
-  .player-action-left {
-    left: calc(var(--band-side) + 8%);
+  .player-event-left {
+    left: calc(var(--band-side) + var(--meld-rail) + 6px);
     top: 49%;
   }
-  .player-action-right {
-    right: calc(var(--band-side) + 8%);
+  .player-event-right {
+    right: calc(var(--band-side) + var(--meld-rail) + 6px);
     top: 49%;
   }
 }
