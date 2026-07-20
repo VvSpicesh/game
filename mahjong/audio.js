@@ -1,4 +1,9 @@
 import {getSetting,subscribe,updateSettings} from "../shared/settings.js";
+import {
+  buildWinSpeech,
+  collectWinSpeechPatterns,
+  mapMannerToWinType
+} from "./win-speech.js";
 
 /**
  * 本地预录语音（优先）+ Web Speech 回退 + Web Audio 音效
@@ -709,11 +714,6 @@ function tileClipKey(tile){
   return `tile_${tile.s}${tile.n}`;
 }
 
-function patternClipKey(name){
-  const clean=String(name||"平胡").replace(/[·・]/g,"").trim()||"平胡";
-  return PATTERN_CLIP[clean]||null;
-}
-
 /**
  * 播本地 clips；失败则可选 TTS 整句回退
  * @param {string[]} keys
@@ -793,58 +793,87 @@ export function speakAction(action){
   speakLocalOrTts(clip?[clip]:[],phrase,{interrupt:false});
 }
 
-export function speakWin({manner,winners,patterns,from=null}={}){
-  const seats=["自己","上家","对家","下家"];
-  const seat=i=>seats[i]||`玩家${i}`;
-  const seatKey=i=>(i>=0&&i<=3)?`seat_${i}`:null;
-  const clean=name=>String(name||"平胡").replace(/[·・]/g,"").trim()||"平胡";
-  const list=Array.isArray(winners)?winners:[];
-  if(!list.length)return;
-
-  const keys=[];
-  const m=String(manner||"");
-  if(m==="自摸"||m==="杠上开花"){
-    keys.push(seatKey(list[0]));
-    keys.push(m==="杠上开花"?"act_gskh":"act_zimo");
-    keys.push(patternClipKey(patterns[0]));
-    speakLocalOrTts(keys,`${seat(list[0])}${m} ${clean(patterns[0])}`,{interrupt:true});
-    return;
+/**
+ * 胡牌整句优先一次 TTS，避免本地 clip 逐词缝隙；TTS 不可用时再回退 clip。
+ * @param {string} sentence
+ * @param {{interrupt?:boolean}} [opts]
+ */
+function speakWinSentence(sentence,opts={}){
+  const phrase=String(sentence||"").trim();
+  if(!phrase||!enabled||!unlocked)return;
+  pendingTileName=null;
+  if(pendingTileTimer){
+    clearTimeout(pendingTileTimer);
+    pendingTileTimer=0;
   }
-  if(m==="抢杠胡"){
-    if(list.length>1){
-      keys.push("shot_ypdx","act_qiangganghu");
-      list.forEach((w,i)=>{
-        keys.push(seatKey(w),patternClipKey(patterns[i]));
-      });
-      const bits=list.map((w,i)=>`${seat(w)}${clean(patterns[i])}`).join(" ");
-      speakLocalOrTts(keys,`一炮多响抢杠胡 ${bits}`,{interrupt:true});
-    }else if(from!=null){
-      keys.push(seatKey(list[0]),"act_qiangganghu",patternClipKey(patterns[0]),"word_qiang",seatKey(from));
-      speakLocalOrTts(keys,`${seat(list[0])}抢杠胡 ${clean(patterns[0])}，抢${seat(from)}`,{interrupt:true});
+  if(canUseTts()){
+    if(opts.interrupt){
+      localGen++;
+      localKeyQueue=[];
+      localBusy=false;
+      enqueueInterruptTts(phrase);
     }else{
-      keys.push(seatKey(list[0]),"act_qiangganghu",patternClipKey(patterns[0]));
-      speakLocalOrTts(keys,`${seat(list[0])}抢杠胡 ${clean(patterns[0])}`,{interrupt:true});
+      enqueueFollowTts(phrase);
     }
     return;
   }
-
-  const shot=m==="杠上炮"?"shot_gsp":"shot_pao";
-  const shotText=m==="杠上炮"?"杠上炮":"放炮";
-  if(from==null){
-    keys.push(seatKey(list[0]),"act_hu",patternClipKey(patterns[0]));
-    speakLocalOrTts(keys,`${seat(list[0])}胡 ${clean(patterns[0])}`,{interrupt:true});
-    return;
-  }
-  if(list.length>1){
-    keys.push(seatKey(from),shot,"shot_ypdx");
-    list.forEach((w,i)=>keys.push(seatKey(w),patternClipKey(patterns[i])));
-    const bits=list.map((w,i)=>`${seat(w)}${clean(patterns[i])}`).join(" ");
-    speakLocalOrTts(keys,`${seat(from)}${shotText}一炮多响 ${bits}`,{interrupt:true});
-    return;
-  }
-  keys.push(seatKey(from),shot,seatKey(list[0]),patternClipKey(patterns[0]));
-  speakLocalOrTts(keys,`${seat(from)}${shotText}${seat(list[0])} ${clean(patterns[0])}`,{interrupt:true});
+  const keys=tokenizeToClips(phrase);
+  speakLocalOrTts(keys,phrase,{interrupt:!!opts.interrupt});
 }
+
+const SEAT_LABELS=["自己","上家","对家","下家"];
+
+/**
+ * 每个胡牌玩家播一整句；一炮多响 = 多句、每句一次 speak。
+ * @param {object} [payload]
+ * @param {string} [payload.manner]
+ * @param {number[]} [payload.winners]
+ * @param {string[]} [payload.patterns] 兼容旧调用
+ * @param {number[]} [payload.fans]
+ * @param {object[]} [payload.winInfos]
+ * @param {number|null} [payload.from]
+ */
+export function speakWin({
+  manner,
+  winners,
+  patterns,
+  fans=null,
+  winInfos=null,
+  from=null
+}={}){
+  const list=Array.isArray(winners)?winners:[];
+  if(!list.length)return;
+
+  const seat=i=>SEAT_LABELS[i]||`玩家${i}`;
+  const winType=mapMannerToWinType(manner);
+  const patternList=Array.isArray(patterns)?patterns:[];
+  const fanList=Array.isArray(fans)?fans:null;
+  const infos=Array.isArray(winInfos)?winInfos:null;
+
+  const sentences=list.map((winnerIndex,i)=>{
+    const info=infos?.[i]||null;
+    const pats=info
+      ?collectWinSpeechPatterns(info)
+      :[String(patternList[i]||"").replace(/[·・]/g,"").trim()].filter(Boolean);
+    const totalFan=
+      fanList?.[i]??
+      info?.totalFan??
+      null;
+    return buildWinSpeech({
+      winnerName:seat(winnerIndex),
+      winType,
+      discarderName:winType==="discard"&&from!=null?seat(from):"",
+      patterns:pats,
+      totalFan
+    });
+  }).filter(Boolean);
+
+  sentences.forEach((sentence,i)=>{
+    speakWinSentence(sentence,{interrupt:i===0});
+  });
+}
+
+export {buildWinSpeech,collectWinSpeechPatterns,mapMannerToWinType} from "./win-speech.js";
 
 function scheduleDiceClack(ctx,master,when){
   const dur=0.025+Math.random()*0.02;

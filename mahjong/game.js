@@ -772,11 +772,13 @@ function winPatternName(info){
   return name;
 }
 
-function speakCurrentWin({manner,winners,winInfos,from=null}){
+function speakCurrentWin({manner,winners,winInfos,from=null,fans=null}){
   speakWin({
     manner,
     winners,
+    winInfos,
     patterns:(winInfos||[]).map(winPatternName),
+    fans:fans??(winInfos||[]).map(info=>info?.totalFan),
     from
   });
 }
@@ -799,7 +801,12 @@ function declareSelfWin(playerIndex,info){
   );
   state.lastAction={type:"win",player:playerIndex,kind:"self",manner};
   showPlayerActionEffect(playerIndex,"胡",winTile,formatPoints(settled.deltas[playerIndex]));
-  speakCurrentWin({manner,winners:[playerIndex],winInfos:[info]});
+  speakCurrentWin({
+    manner,
+    winners:[playerIndex],
+    winInfos:[info],
+    fans:[settled.fan]
+  });
   commit();
 
   showWin(
@@ -876,7 +883,13 @@ function declareDiscardWins(winChecks,tile,fromPlayer){
   });
 
   state.lastAction={type:"win",players:winners,kind:"discard",from:fromPlayer,manner};
-  speakCurrentWin({manner,winners,winInfos,from:fromPlayer});
+  speakCurrentWin({
+    manner,
+    winners,
+    winInfos,
+    from:fromPlayer,
+    fans:settled.fans
+  });
   commit();
 
   const multi=winners.length>1;
@@ -941,7 +954,8 @@ function declareRobGangWins(winners,tile,fromPlayer){
     manner:"抢杠胡",
     winners:winnerIndexes,
     winInfos,
-    from:fromPlayer
+    from:fromPlayer,
+    fans:settled.fans
   });
   commit();
 

@@ -1,4 +1,16 @@
-﻿# v0.14.36
+﻿# v0.14.37
+
+## 语音
+- 胡牌结算改为整句拼播：方位 / 胡法 / 番型 / 番数合并为一句
+- 新增 `win-speech.js`：`buildWinSpeech` / `collectWinSpeechPatterns`
+- 一炮多响：每位胡牌玩家各一句；普通打牌 / 碰杠播报不变
+
+## 平台
+- Service Worker：`nocturne-games-v42`
+
+---
+
+# v0.14.36
 
 ## 平台 / UI
 - 接入统一 Header：`← 四川麻将` + 🔊 ⛶ ⚙

@@ -1,6 +1,12 @@
 # RELEASE NOTES
 
-## Platform v0.14.36
+## Platform v0.14.37
+
+**Service Worker**：`nocturne-games-v42`
+
+- 麻将胡牌结算语音改为整句拼播（`win-speech.js` + `speakWin`），每个胡牌结果一次 TTS
+
+---
 
 **Service Worker**：`nocturne-games-v41`
 
