@@ -1,4 +1,4 @@
-import {tileFace,tileName} from "./tiles.js?v=0.14.24";
+import {tileFace,tileName,tileDisplayName} from "./tiles.js?v=0.14.49";
 import {getLegalDiscardIndexes,SUIT_LABEL} from "./rules-guard.js";
 import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.42";
 import {
@@ -345,7 +345,7 @@ function buildPlayerEventCopy({
   viewerIndex=0
 }){
   const actor=getPlayerDisplayName(playerIndex,viewerIndex,players);
-  const tileLabel=tile?tileName(tile):"";
+  const tileLabel=tile?tileDisplayName(tile):"";
   const source=
     sourcePlayerIndex==null
       ?null
@@ -357,14 +357,15 @@ function buildPlayerEventCopy({
 
   switch(action){
     case "discard":
-      return{name:actor,actionWord:"打出",tileLabel,detail:null,tone:"discard"};
+      return{name:actor,actionWord:"打出",tileLabel,detail:null,tone:"discard",layout:"stack"};
     case "peng":
       return{
         name:actor,
         actionWord:"碰",
         tileLabel,
         detail:source?`来源：${source} · ${tileLabel}`:tileLabel||null,
-        tone:"claim"
+        tone:"claim",
+        layout:"stack"
       };
     case "mingGang":
       return{
@@ -372,22 +373,24 @@ function buildPlayerEventCopy({
         actionWord:"直杠",
         tileLabel,
         detail:source?`来源：${source} · ${tileLabel}`:tileLabel||null,
-        tone:"claim"
+        tone:"claim",
+        layout:"stack"
       };
     case "anGang":
-      return{name:actor,actionWord:"暗杠",tileLabel,detail:null,tone:"claim"};
+      return{name:actor,actionWord:"暗杠",tileLabel,detail:null,tone:"claim",layout:"stack"};
     case "buGang":
       return{
         name:actor,
         actionWord:"补杠",
         tileLabel,
         detail:pengSource?`原碰来源：${pengSource}`:null,
-        tone:"claim"
+        tone:"claim",
+        layout:"stack"
       };
     case "hu":
-      return{name:actor,actionWord:"胡",tileLabel,detail:null,tone:"hu"};
+      return{name:actor,actionWord:"胡",tileLabel,detail:null,tone:"hu",layout:"stack"};
     default:
-      return{name:actor,actionWord:String(action||""),tileLabel,detail:null,tone:"claim"};
+      return{name:actor,actionWord:String(action||""),tileLabel,detail:null,tone:"claim",layout:"stack"};
   }
 }
 
@@ -422,7 +425,7 @@ export function showPlayerEvent(options={}){
   const viewerIndex=Number.isInteger(options.viewerIndex)?options.viewerIndex:0;
   const duration=Math.max(
     400,
-    Number(options.duration)||(action==="discard"?1400:2200)
+    Number(options.duration)||(action==="discard"?1600:2200)
   );
   const copy=buildPlayerEventCopy({
     action,
@@ -442,34 +445,34 @@ export function showPlayerEvent(options={}){
   el.setAttribute("role","status");
   el.setAttribute("aria-live","polite");
 
-  const row=document.createElement("div");
-  row.className="player-event-row";
-
-  const nameEl=document.createElement("span");
+  const nameEl=document.createElement("div");
   nameEl.className="player-event-name";
   nameEl.textContent=copy.name;
-  row.appendChild(nameEl);
+  el.appendChild(nameEl);
+
+  const main=document.createElement("div");
+  main.className="player-event-main";
 
   const actionEl=document.createElement("span");
   actionEl.className="player-event-action";
   actionEl.textContent=copy.actionWord;
-  row.appendChild(actionEl);
+  main.appendChild(actionEl);
 
   if(copy.tileLabel&&(action==="discard"||action==="anGang"||action==="buGang"||action==="hu")){
     const tileNameEl=document.createElement("span");
     tileNameEl.className="player-event-tile-name";
     tileNameEl.textContent=copy.tileLabel;
-    row.appendChild(tileNameEl);
+    main.appendChild(tileNameEl);
   }
 
   if(options.tile){
     const mini=document.createElement("div");
     mini.className="player-event-mini-tile";
     mini.appendChild(createTileElement(options.tile,"tile-event-mini"));
-    row.appendChild(mini);
+    main.appendChild(mini);
   }
 
-  el.appendChild(row);
+  el.appendChild(main);
 
   if(copy.detail){
     const detail=document.createElement("div");
@@ -483,16 +486,6 @@ export function showPlayerEvent(options={}){
     score.className="player-event-score";
     score.textContent=options.scoreText;
     el.appendChild(score);
-  }
-
-  if(action==="discard"){
-    const bar=document.createElement("div");
-    bar.className="player-event-progress";
-    bar.setAttribute("aria-hidden","true");
-    const fill=document.createElement("i");
-    fill.style.animationDuration=`${duration}ms`;
-    bar.appendChild(fill);
-    el.appendChild(bar);
   }
 
   table.appendChild(el);
@@ -517,7 +510,7 @@ function updateDiscardCue(latest,animate,players){
     action:"discard",
     tile:latest.tile,
     players:players||[],
-    duration:1400
+    duration:1600
   });
 }
 

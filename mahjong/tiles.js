@@ -175,6 +175,12 @@ export function tileName(tile){
   return `${tile.n}${{w:"万",t:"条",b:"筒"}[tile.s]}`;
 }
 
+/** UI 展示用全中文牌名（五万 / 三条 / 八筒） */
+export function tileDisplayName(tile){
+  if(!tile||!NUM_CN[tile.n])return tileName(tile)||"";
+  return `${NUM_CN[tile.n]}${{w:"万",t:"条",b:"筒"}[tile.s]}`;
+}
+
 export function tileFace(tile){
   if(tile.s==="w")return faceWan(tile.n);
   if(tile.s==="b")return faceDot(tile.n);

@@ -1,5 +1,35 @@
 # RELEASE NOTES — Nocturne Mahjong
 
+## v0.14.49
+
+**日期**：2026-07-20
+**Service Worker 缓存**：`nocturne-games-v54`
+
+### UI
+- 出牌提示与碰杠同级尺寸；去掉进度条；牌名全中文
+
+---
+
+## v0.14.48
+
+**日期**：2026-07-20
+**Service Worker 缓存**：`nocturne-games-v53`
+
+### UI
+- 定缺弹层加宽；手牌单行均分、无横向滚动
+
+---
+
+## v0.14.47
+
+**日期**：2026-07-20
+**Service Worker 缓存**：`nocturne-games-v52`
+
+### UI
+- 定缺弹层手牌单行展示
+
+---
+
 ## v0.14.46
 
 **日期**：2026-07-20

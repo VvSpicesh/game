@@ -1,5 +1,29 @@
 # RELEASE NOTES
 
+## Platform v0.14.49
+
+**Service Worker**：`nocturne-games-v54`
+
+- 麻将出牌提示放大，与碰杠提示统一
+
+---
+
+## Platform v0.14.48
+
+**Service Worker**：`nocturne-games-v53`
+
+- 麻将定缺弹层加宽；手牌单行无滚动
+
+---
+
+## Platform v0.14.47
+
+**Service Worker**：`nocturne-games-v52`
+
+- 麻将定缺手牌单行展示
+
+---
+
 ## Platform v0.14.46
 
 **Service Worker**：`nocturne-games-v51`
