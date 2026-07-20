@@ -1,5 +1,15 @@
 # RELEASE NOTES — Nocturne Mahjong
 
+## v0.14.38
+
+**日期**：2026-07-20
+**Service Worker 缓存**：`nocturne-games-v43`
+
+### UI
+- 新摸牌左置 + 间隔；副露来源箭头；补杠「自摸补杠」；碰后立即显示
+
+---
+
 ## v0.14.37
 
 **日期**：2026-07-20

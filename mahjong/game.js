@@ -602,7 +602,7 @@ function resolveClaims(tile,fromPlayer,candidates){
 
   if(canGang||canPeng){
     const actions=[];
-    if(canGang)actions.push({label:"杠",tile,primary:true,run:()=>claimMingGang(0,tile,fromPlayer)});
+    if(canGang)actions.push({label:"明杠",tile,primary:true,run:()=>claimMingGang(0,tile,fromPlayer)});
     if(canPeng)actions.push({label:"碰",tile,primary:!canGang,run:()=>claimPeng(0,tile,fromPlayer)});
     actions.push({label:"过",run:()=>resolveAiClaims(tile,fromPlayer,candidates.filter(i=>i!==0))});
 
@@ -649,9 +649,9 @@ function claimPeng(playerIndex,tile,fromPlayer){
   state.phase="出牌";
   state.lastAction={type:"peng",player:playerIndex};
   state.logs.push(`${playerCall(playerIndex)}碰 ${tileName(tile)}。`);
+  commit();
   showPlayerActionEffect(playerIndex,"碰",tile);
   speakAction("碰");
-  commit();
 
   if(playerIndex!==0)scheduleAiDiscard();
 }
@@ -670,6 +670,7 @@ function claimMingGang(playerIndex,tile,fromPlayer){
   state.lastAction={type:"gang",player:playerIndex,kind:"mingGang"};
   const settled=settleMingGang(state,playerIndex,fromPlayer);
   state.logs.push(settled?`${playerCall(playerIndex)}杠 ${tileName(tile)} · ${settled.logText}`:`${playerCall(playerIndex)}杠 ${tileName(tile)}。`);
+  commit();
   showPlayerActionEffect(playerIndex,"杠",tile,settled?formatPoints(settled.pts):"");
   speakAction("杠");
   drawSupplement(playerIndex);
@@ -687,6 +688,7 @@ function doConcealedGang(playerIndex,entry){
       ?`${playerCall(playerIndex)}暗杠 ${tileName(entry.tile)} · ${settled.logText}`
       :`${playerCall(playerIndex)}暗杠 ${tileName(entry.tile)}。`
   );
+  commit();
   showPlayerActionEffect(
     playerIndex,
     "暗杠",
@@ -734,6 +736,7 @@ function completeAddedGang(playerIndex,entry){
       ?`${playerCall(playerIndex)}补杠 ${tileName(entry.tile)} · ${settled.logText}`
       :`${playerCall(playerIndex)}补杠 ${tileName(entry.tile)}。`
   );
+  commit();
   showPlayerActionEffect(
     playerIndex,
     "补杠",

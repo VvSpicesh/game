@@ -24,6 +24,12 @@ import {
 } from "./score.js";
 import {defaultRules,mergeDeep,normalizeSettlementRules} from "./config.js";
 import {tileSpeechName} from "./audio.js";
+import {
+  relativeSeatDirection,
+  normalizeMeldFrom,
+  meldDisplayInfo,
+  buildSelfHandDisplayOrder
+} from "./meld-view.js";
 
 function T(s,n,id=0){return {s,n,id};}
 function tiles(pairs,startId=1){
@@ -553,6 +559,36 @@ export function runRuleTests(){
 
   record("AI0","AI 定缺选最少花色","pickAiMissingSuit",()=>{
     assert(pickAiMissingSuit(tiles([["w",1,5],["t",2,2],["b",3,1]]))==="b");
+  });
+
+  record("MV1","副露方向箭头","相对屏幕几何",()=>{
+    assert(relativeSeatDirection(0,1)==="←");
+    assert(relativeSeatDirection(0,2)==="↑");
+    assert(relativeSeatDirection(0,3)==="→");
+    assert(relativeSeatDirection(0,0)===null);
+  });
+
+  record("MV2","补杠保留来源并标注","自摸补杠 + 箭头",()=>{
+    const info=meldDisplayInfo({type:"buGang",from:2,tiles:[]},0);
+    assert(info.badge==="自摸补杠");
+    assert(info.arrow==="↑");
+  });
+
+  record("MV3","暗杠无来源箭头","anGang",()=>{
+    const info=meldDisplayInfo({type:"anGang",from:0,tiles:[]},0);
+    assert(info.arrow===null&&info.badge===null);
+  });
+
+  record("MV4","旧存档缺 from","normalizeMeldFrom",()=>{
+    assert(normalizeMeldFrom({type:"peng"})===null);
+    assert(normalizeMeldFrom({type:"peng",from:1})===1);
+  });
+
+  record("MV5","新摸牌展示顺序","draw 固定最左",()=>{
+    const hand=[T("w",1,1),T("w",2,2),T("w",9,9)];
+    const order=buildSelfHandDisplayOrder(hand,"d9");
+    assert(order[0].tile.n===9&&order[0].isDraw===true);
+    assert(order[1].tile.n===1&&order[2].tile.n===2);
   });
 
   block("UI1","换三张/定缺弹层/大按钮/飘字/二次点击出牌","交互与动画正常","需人工点选；套件未驱动完整 UI");

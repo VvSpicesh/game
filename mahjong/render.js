@@ -1,5 +1,6 @@
 import {tileFace,tileName} from "./tiles.js?v=0.14.24";
 import {getLegalDiscardIndexes,SUIT_LABEL} from "./rules-guard.js";
+import {buildSelfHandDisplayOrder,meldDisplayInfo} from "./meld-view.js?v=0.14.38";
 
 const SEAT_LABELS=["自己","上家","对家","下家"];
 
@@ -134,7 +135,12 @@ function renderSeat(state,player,index,handlers){
       ?new Set(getLegalDiscardIndexes(player))
       :null;
 
-  player.hand.forEach((tile,tileIndex)=>{
+  const handItems=
+    index===0&&!player.won
+      ?buildSelfHandDisplayOrder(player.hand,state.drawnTileId)
+      :player.hand.map((tile,tileIndex)=>({tile,tileIndex,isDraw:false}));
+
+  handItems.forEach(({tile,tileIndex,isDraw})=>{
     const isWinFace=
       Boolean(winTile) &&
       tileIndex===lastIndex &&
@@ -155,7 +161,7 @@ function renderSeat(state,player,index,handlers){
     if(dealing&&tileIndex===lastIndex)el.classList.add("tile-deal-in");
 
     if(index===0&&!player.won){
-      if(tile.id===state.drawnTileId)el.classList.add("tile-drawn");
+      if(isDraw||tile.id===state.drawnTileId)el.classList.add("tile-drawn");
       if(tileIndex===state.selectedTileIndex)el.classList.add("tile-selected");
 
       if(state.turn===0&&state.phase==="出牌"){
@@ -164,28 +170,49 @@ function renderSeat(state,player,index,handlers){
     }
 
     hand.appendChild(el);
+
+    if(index===0&&isDraw){
+      const gap=document.createElement("div");
+      gap.className="hand-draw-gap";
+      gap.setAttribute("aria-hidden","true");
+      hand.appendChild(gap);
+    }
   });
 
   seat.appendChild(hand);
 
 }
 
-function renderMelds(state){
+export function renderMelds(state){
   for(let index=0;index<4;index++){
     const zone=document.getElementById(`meld-${index}`);
+    if(!zone)continue;
     zone.innerHTML="";
 
     const player=state.players[index];
+    if(!player)continue;
 
-    player.melds.forEach(meld=>{
+    (player.melds||[]).forEach(meld=>{
+      const meta=meldDisplayInfo(meld,index);
       const group=document.createElement("div");
       group.className="meld-group"+(meld.type==="anGang"?" meld-group-angang":"");
-      group.title={
-        peng:"碰",
-        mingGang:"杠",
-        anGang:"暗杠",
-        buGang:"补杠"
-      }[meld.type]||meld.type;
+      group.title=meta.badge?`${meta.title} · ${meta.badge}`:meta.title;
+      if(meta.sourceLabel)group.title+=` · ${meta.sourceLabel}`;
+
+      if(meta.arrow){
+        const arrow=document.createElement("span");
+        arrow.className="meld-source-arrow";
+        arrow.textContent=meta.arrow;
+        arrow.setAttribute("aria-hidden","true");
+        if(meta.sourceLabel)arrow.title=meta.sourceLabel;
+        group.appendChild(arrow);
+      }
+      if(meta.badge){
+        const badge=document.createElement("span");
+        badge.className="meld-badge";
+        badge.textContent=meta.badge;
+        group.appendChild(badge);
+      }
 
       const tiles=meld.tiles||[];
       tiles.forEach((tile,tileIndex)=>{

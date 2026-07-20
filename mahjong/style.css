@@ -355,8 +355,14 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 .tile-drawn{
   transform:translateY(-8px);
-  margin-left:clamp(7px,1vw,14px);
   box-shadow:0 0 0 2px rgba(239,199,104,.5),0 10px 16px rgba(0,0,0,.35)
+}
+.hand-draw-gap{
+  flex:0 0 clamp(10px,2.2vw,22px);
+  width:clamp(10px,2.2vw,22px);
+  min-width:clamp(10px,2.2vw,22px);
+  align-self:stretch;
+  pointer-events:none
 }
 .tile-drawn.tile-selected{transform:translateY(-16px)!important}
 .tile-back{
@@ -969,12 +975,31 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   display:flex;
   gap:1px;
   padding:3px;
+  padding-top:11px;
   border-radius:8px;
   background:rgba(4,24,17,.82);
   border:1px solid rgba(255,255,255,.12);
   box-shadow:0 6px 14px rgba(0,0,0,.25);
   flex:0 0 auto;
+  position:relative
 }
+.meld-source-arrow{
+  position:absolute;top:1px;left:50%;transform:translateX(-50%);
+  font-size:10px;line-height:1;font-weight:900;color:var(--gold);
+  text-shadow:0 1px 2px rgba(0,0,0,.55);pointer-events:none;z-index:2
+}
+.meld-badge{
+  position:absolute;top:1px;right:2px;
+  font-size:8px;line-height:1.1;font-weight:800;color:#f0e2b8;
+  background:rgba(0,0,0,.45);border-radius:4px;padding:1px 3px;
+  pointer-events:none;z-index:2;white-space:nowrap
+}
+.meld-left .meld-source-arrow,
+.meld-right .meld-source-arrow{
+  top:50%;left:auto;transform:translateY(-50%)
+}
+.meld-left .meld-source-arrow{left:1px}
+.meld-right .meld-source-arrow{right:1px}
 .meld-group-angang{
   outline:1px dashed rgba(255,255,255,.22);
 }
@@ -1668,8 +1693,13 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     width: min(calc(var(--tile-w) * .9), var(--fit-w));
     height: calc(min(calc(var(--tile-w) * .9), var(--fit-w)) * 1.42);
   }
-  .seat-bottom .hand .tile.drawn {
-    margin-left: 5px;
+  .seat-bottom .hand .tile-drawn {
+    transform: translateY(-4px);
+  }
+  .seat-bottom .hand .hand-draw-gap {
+    flex-basis: 8px;
+    width: 8px;
+    min-width: 8px;
   }
   .seat-bottom .hand .tile.tile-selected {
     transform: translateY(-6px) !important;

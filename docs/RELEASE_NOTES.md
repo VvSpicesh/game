@@ -1,5 +1,13 @@
 # RELEASE NOTES
 
+## Platform v0.14.38
+
+**Service Worker**：`nocturne-games-v43`
+
+- 麻将摸牌 / 副露渲染修复：新摸牌左置、来源箭头、补杠标注、碰后立即显示
+
+---
+
 ## Platform v0.14.37
 
 **Service Worker**：`nocturne-games-v42`
