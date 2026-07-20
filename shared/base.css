@@ -33,6 +33,34 @@ h1,h2,h3,p{margin-top:0}
 .brand h1{margin-bottom:3px;font-size:28px}
 .brand p{margin-bottom:0;color:var(--muted);font-size:13px}
 .pill,.tag,.eyebrow{display:inline-flex;padding:7px 10px;border:1px solid var(--line);border-radius:999px;font-size:11px;color:#dce5fb;background:rgba(255,255,255,.05)}
+.ng-header{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  width:100%;margin-bottom:18px;flex-wrap:wrap
+}
+.ng-header-left{display:flex;align-items:center;gap:12px;min-width:0}
+.ng-header-back{
+  color:var(--text);font-size:clamp(18px,2.8vw,26px);font-weight:850;
+  letter-spacing:-.03em;text-decoration:none;white-space:nowrap
+}
+.ng-header-back:hover{opacity:.88}
+.ng-header-tools{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(255,255,255,.04)
+}
+.ng-tool-btn{
+  width:36px;height:36px;display:inline-grid;place-items:center;
+  border:none;border-radius:999px;background:transparent;color:var(--text);
+  cursor:pointer;font-size:16px;line-height:1
+}
+.ng-tool-btn:hover{background:rgba(255,255,255,.1)}
+.ng-tool-btn:disabled{opacity:.4;cursor:not-allowed}
+.ng-tool-btn.is-pulse{animation:ngToolPulse .35s ease}
+@keyframes ngToolPulse{
+  0%{transform:scale(1)}
+  50%{transform:scale(1.08)}
+  100%{transform:scale(1)}
+}
 .fullscreen-btn{
   display:inline-flex;align-items:center;justify-content:center;
   min-height:34px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;

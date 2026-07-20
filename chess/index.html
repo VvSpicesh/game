@@ -10,23 +10,14 @@
   <link rel="manifest" href="../manifest.webmanifest">
   <link rel="icon" href="../assets/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="../assets/icons/icon-192.png">
-  <link rel="stylesheet" href="../shared/base.css?v=stable11">
+  <link rel="stylesheet" href="../shared/base.css?v=0.15.1">
   <link rel="stylesheet" href="./css/board.css?v=stable11">
   <link rel="stylesheet" href="./css/themes.css?v=stable11">
   <link rel="stylesheet" href="./css/ui.css?v=stable11">
 </head>
 <body>
   <main class="game-page">
-    <header class="game-header">
-      <div>
-        <a class="back-link" href="../index.html">← 返回游戏大厅</a>
-        <h1>Nocturne Chess</h1>
-      </div>
-      <div class="header-actions">
-        <span class="pill">Stable v1.0</span>
-        <button id="fullscreenBtn" class="fullscreen-btn" type="button">⛶ 全屏</button>
-      </div>
-    </header>
+    <header id="ngHeader" class="ng-header"></header>
 
     <section class="chess-layout">
       <div class="board-shell panel" data-theme="blue">
@@ -142,7 +133,7 @@
   <script src="./js/renderer.js?v=stable13"></script>
   <script src="./js/ai.js?v=stable13"></script>
   <script src="./js/audio.js?v=stable13"></script>
-  <script type="module" src="./js/game.js?v=stable15"></script>
+  <script type="module" src="./js/game.js?v=stable16"></script>
   <script type="module" src="../shared/pwa.js"></script>
 </body>
 </html>

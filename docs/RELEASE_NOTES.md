@@ -1,6 +1,13 @@
 # RELEASE NOTES
 
-## Platform v0.14.35
+## Platform v0.14.36
+
+**Service Worker**：`nocturne-games-v41`
+
+- 新增统一 Header（`shared/header.js`）：大厅 / 象棋 / 麻将共用 🔊 ⛶ ⚙
+- 麻将规则区保留换三张 / 刮风下雨 / 封顶；声音改由统一工具栏控制
+
+---
 
 **Service Worker**：`nocturne-games-v40`
 

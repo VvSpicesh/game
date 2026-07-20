@@ -1,5 +1,5 @@
 import {getSetting,setSetting} from "../../shared/settings.js";
-import {setupFullscreenButton} from "../../shared/fullscreen.js";
+import {mountHeader} from "../../shared/header.js";
 
 (() => {
   "use strict";
@@ -282,10 +282,17 @@ import {setupFullscreenButton} from "../../shared/fullscreen.js";
       });
       document.getElementById("resetChess").addEventListener("click", () => this.confirmNewGame());
       document.getElementById("resignChess")?.addEventListener("click", () => this.resign());
-      setupFullscreenButton({
-        button:"#fullscreenBtn",
-        target:document.documentElement,
-        onError:() => ChessRenderer.showToast("当前浏览器无法进入全屏")
+      mountHeader({
+        el: "#ngHeader",
+        mode: "game",
+        title: "国际象棋",
+        homeHref: "../index.html",
+        onSoundChange: (enabled) => {
+          window.ChessAudio?.init();
+          window.ChessAudio?.setEnabled(enabled);
+          ChessRenderer.showToast(enabled ? "声音已开启" : "声音已关闭");
+        },
+        onFullscreenError: () => ChessRenderer.showToast("当前浏览器无法进入全屏")
       });
       document.getElementById("endGameRematch")?.addEventListener("click", () => {
         this.startFreshBoard(true);

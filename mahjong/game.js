@@ -26,12 +26,11 @@ import {
   roundSummary
 } from "./score.js";
 import {runRuleTests} from "./rule-tests.js";
-import {setupFullscreenButton} from "../shared/fullscreen.js";
+import {mountHeader} from "../shared/header.js";
 import {
   initAudio,
   setAudioEnabled,
   isAudioSupported,
-  isAudioEnabled,
   speakTile,
   speakAction,
   speakWin,
@@ -125,9 +124,6 @@ if(!compatible(state)){
 
 const ruleExchange=document.getElementById("ruleExchange");
 const ruleGang=document.getElementById("ruleGang");
-const ruleAudio=document.getElementById("ruleAudio");
-const ruleAudioText=document.getElementById("ruleAudioText");
-const ruleAudioLabel=document.getElementById("ruleAudioLabel");
 const ruleCapFan=document.getElementById("ruleCapFan");
 ruleExchange.checked=rules.exchangeThree;
 ruleGang.checked=rules.gangRain;
@@ -139,28 +135,23 @@ function syncCapFanUi(){
   else ruleCapFan.value="8";
 }
 
-function syncAudioUi(){
-  if(!ruleAudio)return;
-  if(!isAudioSupported()){
-    ruleAudio.checked=false;
-    ruleAudio.disabled=true;
-    if(ruleAudioText)ruleAudioText.textContent="不支持语音";
-    if(ruleAudioLabel)ruleAudioLabel.title="当前浏览器不支持语音播报";
-    return;
-  }
-  ruleAudio.disabled=false;
-  ruleAudio.checked=isAudioEnabled();
-  if(ruleAudioText)ruleAudioText.textContent="声音";
-  if(ruleAudioLabel)ruleAudioLabel.title="打牌与碰杠胡时语音播报";
-}
-
-syncAudioUi();
 syncCapFanUi();
 armAudioGestureUnlock();
-setupFullscreenButton({
-  button:"#fullscreenBtn",
-  target:document.documentElement,
-  onError(){
+mountHeader({
+  el:"#ngHeader",
+  mode:"game",
+  title:"四川麻将",
+  homeHref:"../index.html",
+  onSoundChange(enabled){
+    if(!isAudioSupported()){
+      toast("当前浏览器不支持声音");
+      return;
+    }
+    initAudio();
+    setAudioEnabled(enabled);
+    toast(enabled?"声音已开启":"声音已关闭");
+  },
+  onFullscreenError(){
     toast("当前浏览器无法进入全屏");
   }
 });
@@ -172,17 +163,6 @@ ruleExchange.addEventListener("change",()=>{
 ruleGang.addEventListener("change",()=>{
   rules.gangRain=ruleGang.checked;
   saveRules(rules);
-});
-ruleAudio?.addEventListener("change",()=>{
-  if(!isAudioSupported()){
-    syncAudioUi();
-    return;
-  }
-  initAudio();
-  setAudioEnabled(ruleAudio.checked);
-  syncAudioUi();
-  if(ruleAudio.checked)toast("声音已开启");
-  else toast("声音已关闭");
 });
 ruleCapFan?.addEventListener("change",()=>{
   const cap=Number(ruleCapFan.value)||8;
@@ -279,7 +259,6 @@ function newGame(){
   hideMissingSuitModal();
   rules=loadRules();
   names=loadNames();
-  syncAudioUi();
   syncCapFanUi();
 
   const dealer=nextDealerSeat();

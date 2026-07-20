@@ -1,5 +1,5 @@
 import {getSettings,subscribe} from "./settings.js";
-import {setupFullscreenButton} from "./fullscreen.js";
+import {mountHeader} from "./header.js";
 
 function applySharedSettings(){
   const settings=getSettings();
@@ -12,7 +12,10 @@ function applySharedSettings(){
 applySharedSettings();
 subscribe(applySharedSettings);
 
-setupFullscreenButton({
-  button:"#fullscreenBtn",
-  target:document.documentElement
+mountHeader({
+  el:"#ngHeader",
+  mode:"hall",
+  title:"Nocturne Games",
+  subtitle:"把一点空闲，变成一场游戏。",
+  mark:"◐"
 });

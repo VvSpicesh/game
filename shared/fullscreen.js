@@ -20,6 +20,11 @@ function syncButton(button,active){
   button.dataset.fullscreenActive=active?"1":"0";
   button.dataset.fullscreenPreferred=preferred?"1":"0";
   button.setAttribute("aria-pressed",active?"true":"false");
+  if(button.dataset.iconOnly==="1"){
+    button.textContent=active?"🗗":"⛶";
+    button.title=active?"退出全屏":"全屏";
+    return;
+  }
   button.textContent=active?"🗗 退出全屏":"⛶ 全屏";
   button.title=active?"退出浏览器全屏":"进入浏览器全屏";
 }

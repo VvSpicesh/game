@@ -62,6 +62,13 @@ button,input{font:inherit}
 .topbar-actions{
   display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center;min-width:0
 }
+.mahjong-controls{
+  margin:0 0 8px;
+  justify-content:flex-start
+}
+.app > .ng-header{
+  margin-bottom:8px
+}
 .btn-dev{
   border-color:rgba(212,175,105,.45);color:#f0d9a8;background:rgba(212,175,105,.12)
 }
@@ -1374,11 +1381,21 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     overflow-y: hidden;
   }
 
-  .topbar {
+  .topbar,
+  .ng-header {
     margin-bottom: 2px;
     gap: 4px;
     align-items: center;
     flex-wrap: nowrap;
+  }
+  .mahjong-controls{
+    margin-bottom:4px
+  }
+  .ng-header-back{
+    font-size:16px
+  }
+  .ng-tool-btn{
+    width:32px;height:32px;font-size:14px
   }
   .brand .logo,
   .brand h1,

@@ -11,23 +11,11 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
-  <link rel="stylesheet" href="./shared/base.css">
+  <link rel="stylesheet" href="./shared/base.css?v=0.15.1">
 </head>
 <body>
   <main class="shell">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark">◐</div>
-        <div>
-          <h1>Nocturne Games</h1>
-          <p>把一点空闲，变成一场游戏。</p>
-        </div>
-      </div>
-      <div class="header-actions">
-        <span class="pill">HTML · PWA · GitHub Pages</span>
-        <button id="fullscreenBtn" class="fullscreen-btn" type="button">⛶ 全屏</button>
-      </div>
-    </header>
+    <header id="ngHeader" class="ng-header"></header>
 
     <section class="hero panel">
       <div>
@@ -60,7 +48,7 @@
       </a>
     </section>
   </main>
-  <script type="module" src="./shared/app.js"></script>
+  <script type="module" src="./shared/app.js?v=0.15.1"></script>
   <script type="module" src="./shared/pwa.js"></script>
 </body>
 </html>
