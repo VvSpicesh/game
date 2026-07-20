@@ -17,14 +17,18 @@ export function createTileElement(tile,className=""){
   const el=document.createElement("div");
   el.className=`tile ${className}`;
 
+  const face=document.createElement("div");
+  face.className="tile-face";
+
   if(tile){
-    el.innerHTML=tileFace(tile);
+    face.innerHTML=tileFace(tile);
     el.title=tileName(tile);
     el.dataset.id=tile.id;
   }else{
     el.classList.add("tile-back");
   }
 
+  el.appendChild(face);
   return el;
 }
 
@@ -261,12 +265,14 @@ function renderDiscards(state){
       .filter(item=>item.player===index)
       .forEach(item=>{
         const isLatest=latest&&item===latest;
-        const classes=["tile-discard","discard-tile"];
+        const wrap=document.createElement("div");
+        wrap.className="discard-tile-wrap";
         if(isLatest){
-          classes.push("discard-tile-latest");
-          if(shouldAnimate)classes.push("discard-tile-latest-animate");
+          wrap.classList.add("discard-tile-latest");
+          if(shouldAnimate)wrap.classList.add("discard-tile-latest-animate");
         }
-        zone.appendChild(createTileElement(item.tile,classes.join(" ")));
+        wrap.appendChild(createTileElement(item.tile,"tile-discard discard-tile"));
+        zone.appendChild(wrap);
       });
   }
 

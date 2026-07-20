@@ -300,6 +300,14 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   touch-action:manipulation
 }
 .tile svg{width:100%;height:100%;display:block}
+.tile-face{
+  width:100%;
+  height:100%;
+  display:block;
+  transform-origin:center center;
+  pointer-events:none
+}
+.tile-face svg{width:100%;height:100%;display:block}
 .tile-selected{
   transform:translateY(-13px)!important;
   box-shadow:0 0 0 3px var(--gold),0 12px 18px rgba(0,0,0,.38)
@@ -387,8 +395,17 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   cursor:default;
   border-radius:5px;
   flex:0 0 auto;
-  transform:none!important;
   margin:0!important
+}
+
+.discard-tile-wrap{
+  flex:0 0 auto;
+  position:relative;
+  display:grid;
+  place-items:center;
+  width:var(--discard-tile-width);
+  height:var(--discard-tile-height);
+  overflow:visible
 }
 
 .discard-zone{
@@ -396,15 +413,15 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   gap:var(--discard-tile-gap);align-content:flex-start;
   pointer-events:none
 }
-/* 上家 / 自己：横向多列，向桌心扩展 */
+/* 自己：左→右；对家：右→左且靠近桌心；左右：最新靠近自己 */
 .discard-top{
   top:28%;
   left:28%;
   right:28%;
   justify-content:center;
-  flex-direction:row;
+  flex-direction:row-reverse;
   flex-wrap:wrap;
-  align-content:flex-start;
+  align-content:flex-end;
   max-height:18%
 }
 .discard-bottom{
@@ -417,15 +434,12 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   align-content:flex-end;
   max-height:18%
 }
-/* 左 / 右：纵向排列，牌面正向；多列向桌心扩展
-   左家：旧→新 自上而下（最新靠近自己）
-   右家：column-reverse，最新在上（靠近自己） */
 .discard-left,
 .discard-right{
   top:28%;
   bottom:28%;
-  width:calc(var(--discard-tile-width) * 2 + var(--discard-tile-gap) * 3);
-  max-width:min(24%,calc(var(--discard-tile-width) * 2 + var(--discard-tile-gap) * 3));
+  width:calc(var(--discard-tile-height) * 2 + var(--discard-tile-gap) * 3);
+  max-width:min(24%,calc(var(--discard-tile-height) * 2 + var(--discard-tile-gap) * 3));
   flex-wrap:wrap;
   align-items:center;
   gap:var(--discard-tile-gap);
@@ -443,24 +457,28 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   justify-content:flex-start;
   align-content:flex-end
 }
-.discard-left .discard-tile,
-.discard-right .discard-tile,
-.discard-top .discard-tile,
-.discard-bottom .discard-tile{
-  transform:none!important;
-  margin:0!important
-}
 
-/* 最新弃牌：同尺寸；1.5s 强高亮后仅细金边，直到下一张 */
+/* 左右弃牌槽：布局按旋转后的占地，牌面朝向该家（与手牌一致） */
+.discard-left .discard-tile-wrap,
+.discard-right .discard-tile-wrap{
+  width:var(--discard-tile-height);
+  height:var(--discard-tile-width)
+}
+.discard-bottom .discard-tile-wrap > .tile{transform:rotate(0deg)}
+.discard-top .discard-tile-wrap > .tile{transform:rotate(180deg)}
+.discard-left .discard-tile-wrap > .tile{transform:rotate(90deg)}
+.discard-right .discard-tile-wrap > .tile{transform:rotate(-90deg)}
+
+/* 最新弃牌高亮在 wrapper 上，不受牌面朝向 transform 影响 */
 .discard-tile-latest{
   z-index:3;
   box-shadow:0 0 0 1.5px rgba(239,199,104,.75);
-  border-color:rgba(239,199,104,.7)!important
+  border-radius:6px
 }
-.discard-top .discard-tile-latest{transform:translateY(5px)!important}
-.discard-bottom .discard-tile-latest{transform:translateY(-5px)!important}
-.discard-left .discard-tile-latest{transform:translateX(5px)!important}
-.discard-right .discard-tile-latest{transform:translateX(-5px)!important}
+.discard-top .discard-tile-latest{transform:translateY(5px)}
+.discard-bottom .discard-tile-latest{transform:translateY(-5px)}
+.discard-left .discard-tile-latest{transform:translateX(5px)}
+.discard-right .discard-tile-latest{transform:translateX(-5px)}
 
 .discard-tile-latest-animate{
   animation:discardLatestPulse 1.5s ease-out forwards
@@ -995,12 +1013,12 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   padding-bottom:6px;
 }
 
-/* 左右副露：上下止点对称对家；牌面全部正向竖放 */
+/* 左右副露：上下止点对称对家；牌面朝向该家（槽位按旋转后占地） */
 .meld-left,
 .meld-right{
   top:calc(var(--band-top) + 10px);
   bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 10px);
-  width:max(var(--meld-rail),calc(var(--meld-tw) + 28px));
+  width:max(var(--meld-rail),calc(var(--meld-th) + 28px));
   max-height:none;
   transform:none;
   flex-direction:column;
@@ -1045,7 +1063,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   outline:1px dashed rgba(255,255,255,.22);
 }
 
-/* 副露牌：全部正向；来源牌外凸 + 外侧文字标签 */
+/* 副露牌：wrapper 负责排列/高亮/标签；.tile 只负责朝向该家 */
 .meld-tile-wrap{
   flex:0 0 auto;
   position:relative;
@@ -1054,27 +1072,35 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   width:var(--meld-tw);
   height:var(--meld-th);
   padding:0;
-  box-sizing:content-box
+  box-sizing:content-box;
+  overflow:visible
 }
 .meld-tile-wrap .tile{
   width:var(--meld-tw);
   height:var(--meld-th);
   cursor:default;
   margin:0;
-  transform:none!important;
+  transform-origin:center center
 }
-.meld-tile-wrap.meld-source .tile{
+.meld-bottom .meld-tile-wrap > .tile{transform:rotate(0deg)}
+.meld-top .meld-tile-wrap > .tile{transform:rotate(180deg)}
+.meld-left .meld-tile-wrap > .tile{transform:rotate(90deg)}
+.meld-right .meld-tile-wrap > .tile{transform:rotate(-90deg)}
+
+/* 来源牌：金色边框与外凸在 wrapper，不随牌面旋转 */
+.meld-tile-wrap.meld-source{
+  z-index:2;
+  border-radius:5px;
   box-shadow:
     0 0 0 2px var(--gold),
-    0 4px 10px rgba(0,0,0,.35);
-  border-color:rgba(239,199,104,.8)!important;
-  z-index:1
+    0 4px 10px rgba(0,0,0,.35)
 }
 .meld-nudge-up{transform:translateY(-7px)}
 .meld-nudge-down{transform:translateY(7px)}
 .meld-nudge-left{transform:translateX(-7px)}
 .meld-nudge-right{transform:translateX(7px)}
 
+/* 来源标签：始终正对当前用户，不跟牌面旋转 */
 .meld-source-label{
   position:absolute;
   z-index:4;
@@ -1089,7 +1115,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   line-height:1.1;
   text-align:center;
   pointer-events:none;
-  box-shadow:0 2px 6px rgba(0,0,0,.35)
+  box-shadow:0 2px 6px rgba(0,0,0,.35);
+  transform:none
 }
 /* 标签放在牌桌外侧（相对拥有者），不挡牌面 */
 .meld-bottom .meld-source-label,
@@ -1118,7 +1145,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   transform:translateY(-50%)
 }
 
-/* 左右组：纵向排列，牌面仍正向（不旋转） */
+/* 左右组：纵向排列；槽位按旋转后宽高对调 */
 .meld-left .meld-group,
 .meld-right .meld-group{
   flex-direction:column;
@@ -1130,12 +1157,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 .meld-left .meld-tile-wrap,
 .meld-right .meld-tile-wrap{
-  width:var(--meld-tw);
-  height:var(--meld-th)
-}
-.meld-left .meld-tile-wrap .tile,
-.meld-right .meld-tile-wrap .tile{
-  transform:none!important
+  width:var(--meld-th);
+  height:var(--meld-tw)
 }
 
 /* 旧的 seat 内副露隐藏，防止重复和遮挡。 */
@@ -1289,7 +1312,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 
   .meld-left,
   .meld-right{
-    width:max(clamp(38px,11vw,56px),calc(var(--meld-tw) + 28px));
+    width:max(clamp(38px,11vw,56px),calc(var(--meld-th) + 28px));
     gap:6px;
     overflow:visible;
   }
@@ -1699,8 +1722,9 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     max-height: 18%;
     overflow: visible;
     flex-wrap: wrap;
+    flex-direction: row-reverse;
     justify-content: center;
-    align-content: flex-start;
+    align-content: flex-end;
   }
   .discard-bottom {
     top: auto;
@@ -1718,8 +1742,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     top: 32%;
     bottom: 34%;
     max-height: 34%;
-    width: calc(var(--discard-tile-width) * 2 + var(--discard-tile-gap) * 3);
-    max-width: min(24%, calc(var(--discard-tile-width) * 2 + var(--discard-tile-gap) * 3));
+    width: calc(var(--discard-tile-height) * 2 + var(--discard-tile-gap) * 3);
+    max-width: min(24%, calc(var(--discard-tile-height) * 2 + var(--discard-tile-gap) * 3));
     overflow: visible;
     flex-wrap: wrap;
   }
@@ -1734,11 +1758,6 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     flex-direction: column-reverse;
     justify-content: flex-start;
     align-content: flex-end;
-  }
-  .discard-left .discard-tile,
-  .discard-right .discard-tile {
-    transform: none !important;
-    margin: 0 !important;
   }
   .ng-game-toast {
     top: calc(50% + 40px);
@@ -1864,7 +1883,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     top: 34%;
     bottom: 36%;
     max-height: 30%;
-    width: max(var(--meld-rail), calc(var(--meld-tw) + 10px));
+    width: max(var(--meld-rail), calc(var(--meld-th) + 10px));
     overflow: visible;
     flex-wrap: wrap;
     flex-direction: column;
@@ -1889,6 +1908,11 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .meld-tile-wrap .tile {
     width: var(--meld-tw);
     height: var(--meld-th);
+  }
+  .meld-left .meld-tile-wrap,
+  .meld-right .meld-tile-wrap {
+    width: var(--meld-th);
+    height: var(--meld-tw);
   }
   .meld-source-label {
     font-size: 13px;

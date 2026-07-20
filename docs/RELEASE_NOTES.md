@@ -1,5 +1,13 @@
 # RELEASE NOTES
 
+## Platform v0.14.45
+
+**Service Worker**：`nocturne-games-v50`
+
+- 麻将四家弃牌与副露牌面朝向各座位玩家（仅渲染层）
+
+---
+
 ## Platform v0.14.44
 
 **Service Worker**：`nocturne-games-v49`
