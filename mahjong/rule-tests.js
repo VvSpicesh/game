@@ -27,9 +27,11 @@ import {tileSpeechName} from "./audio.js";
 import {
   relativeSeatDirection,
   getRelativeSourcePosition,
+  getMeldSourceSlot,
   getRelativeSourceTag,
   getMeldOwnerNudge,
   normalizeMeldFrom,
+  getHighlightedMeldTile,
   meldDisplayInfo,
   buildMeldTilePlan,
   buildSelfHandDisplayOrder
@@ -584,13 +586,43 @@ export function runRuleTests(){
     assert(relativeSeatDirection(0,1)==="←");
   });
 
-  record("MV2","补杠保留来源叠层","来源位 + 顶层第四张",()=>{
+  record("MV1b","对家碰上家展示最左","getMeldSourceSlot 对家↔上家",()=>{
+    // 对家(2) 碰上家(1)：展示槽必须在最左（身体右侧映射到屏幕左）
+    assert(getMeldSourceSlot(2,1)==="left");
+    assert(getMeldSourceSlot(2,3)==="right");
+    assert(getMeldSourceSlot(2,0)==="middle");
+    const tiles=[T("w",5,1),T("w",5,2),T("w",5,3)];
+    const plan=buildMeldTilePlan({type:"peng",from:1,tiles},2);
+    assert(plan.sourcePosition==="left");
+    assert(plan.layers.base[0].isSource===true);
+    assert(plan.layers.base.filter(i=>i.isSource).length===1);
+  });
+
+  record("MV1c","四家碰三向来源槽","owner×source 全覆盖",()=>{
+    // 自己
+    assert(getMeldSourceSlot(0,1)==="left");
+    assert(getMeldSourceSlot(0,2)==="middle");
+    assert(getMeldSourceSlot(0,3)==="right");
+    // 左家
+    assert(getMeldSourceSlot(1,2)==="left");
+    assert(getMeldSourceSlot(1,3)==="middle");
+    assert(getMeldSourceSlot(1,0)==="right");
+    // 右家
+    assert(getMeldSourceSlot(3,0)==="left");
+    assert(getMeldSourceSlot(3,1)==="middle");
+    assert(getMeldSourceSlot(3,2)==="right");
+  });
+
+  record("MV2","补杠只高亮顶层补牌","来源框在 top 不在 base",()=>{
     const tiles=[T("w",1,1),T("w",1,2),T("w",1,3),T("w",1,4)];
     const plan=buildMeldTilePlan({type:"buGang",from:2,tiles},0);
-    assert(plan.sourcePosition==="middle");
-    assert(plan.layers.base.filter(i=>i.isSource).length===1);
-    assert(plan.layers.base[1].isSource===true);
+    const hi=getHighlightedMeldTile({type:"buGang",from:2,tiles},0);
+    assert(hi?.layer==="top");
+    assert(plan.layers.base.every(i=>!i.isSource));
     assert(plan.layers.top.length===1);
+    assert(plan.layers.top[0].isSource===true);
+    assert(plan.layers.top[0].isAddedGang===true);
+    assert(plan.layers.top.filter(i=>i.isSource).length===1);
     assert(plan.widthScale===1.1);
   });
 
@@ -625,9 +657,12 @@ export function runRuleTests(){
   record("MV4c","直杠来源叠层","三底一顶 + 来源位",()=>{
     const tiles=[T("t",9,1),T("t",9,2),T("t",9,3),T("t",9,4)];
     const plan=buildMeldTilePlan({type:"mingGang",from:3,tiles},0);
+    const hi=getHighlightedMeldTile({type:"mingGang",from:3,tiles},0);
+    assert(hi?.layer==="base"&&hi.baseIndex===2);
     assert(plan.sourcePosition==="right");
     assert(plan.layers.base[2].isSource);
     assert(plan.layers.top.length===1);
+    assert(plan.layers.top[0].isSource===false);
     assert(plan.layers.base.filter(i=>i.isSource).length===1);
     assert(plan.widthScale===1.1);
   });

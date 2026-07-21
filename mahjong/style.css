@@ -6,6 +6,12 @@
   --text:#f5fff8;
   --muted:#a6c3b1;
   --gold:#efc768;
+  /* 牌来源 / 最新弃牌高亮（明亮金黄，四家共用） */
+  --tile-highlight-color:#FFD23F;
+  --tile-highlight-width:3px;
+  --tile-highlight-radius:5px;
+  --tile-highlight-ring:0 0 0 1px rgba(255,210,63,.45);
+  --tile-highlight-glow:0 0 8px rgba(255,210,63,.75);
   /* 牌面加宽约 20%；各断点覆盖。手牌不足宽度时由 .seat-bottom .hand 自适应压窄 */
   --tile-w:clamp(36px,4.1vw,66px);
   --tile-h:calc(var(--tile-w) * 1.42);
@@ -146,6 +152,7 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   /* 底部分层：手牌带（尺寸不压） + 副露安全带（固定高度，可换行） */
   --self-hand-band:calc(var(--tile-h) + 58px);
   --self-meld-band:max(56px,calc(var(--meld-th) * 2 + 22px));
+  --opp-meld-band:max(56px,calc(var(--self-meld-band) * 1.35));
   --band-bottom:calc(var(--self-hand-band) + var(--self-meld-band) + 8px);
   --meld-gap:4px;
   --discard-meld-gap:14px;
@@ -154,12 +161,45 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   --discard-tile-width:calc(var(--tile-w) * .575);
   --discard-tile-height:calc(var(--discard-tile-width) * 1.42);
   --discard-tile-gap:3px;
+  /* 轻微重叠（弃牌后续行/列覆盖前一行/列） */
+  /* 上下：15%–20% tile 高度覆盖；左右：15%–20% tile 宽度覆盖；且最终不超过 30% */
+  --discard-row-overlap:calc(var(--discard-tile-height) * 0.18);
+  --discard-column-overlap:calc(var(--discard-tile-width) * 0.18);
+  /* 弃牌象限：侧向不超纵中线，上下不超左右栏 */
+  --discard-quadrant-side-w:min(26%,calc(50% - var(--band-side) - 6px));
+  --discard-quadrant-center-w:min(56%,calc(100% - 2 * var(--discard-inset)));
+  --discard-side-cols-max:4;
+  --discard-side-max-w:calc(var(--discard-tile-height) * var(--discard-side-cols-max) + var(--discard-tile-gap) * (var(--discard-side-cols-max) - 1));
+  /* 自己/对家：默认按 9 张估算（实际宽度由 JS 按副露内侧可用宽写入） */
+  --discard-center-cols-max:9;
+  --discard-center-max-w:calc(var(--discard-tile-width) * var(--discard-center-cols-max) + var(--discard-tile-gap) * (var(--discard-center-cols-max) - 1) + 4px);
+  --seat-h-inset:var(--discard-inset);
+  --seat-zone-gap:var(--discard-meld-gap);
+  --event-anchor-w:clamp(180px,28vw,240px);
+  --event-anchor-h:clamp(80px,12vh,110px);
   background:
     radial-gradient(circle at center,rgba(38,139,94,.24),transparent 50%),
     linear-gradient(145deg,#0b5238,#073623);
   border:1px solid rgba(255,255,255,.13);
   box-shadow:0 24px 60px rgba(0,0,0,.34)
 }
+
+/* tablet: 20%–25% */
+@media(min-width:600px) and (max-width:899px){
+  .table{
+    --discard-row-overlap:calc(var(--discard-tile-height) * 0.22);
+    --discard-column-overlap:calc(var(--discard-tile-width) * 0.22);
+  }
+}
+
+/* phone: up to 25% (never exceed 30%) */
+@media(max-width:599px){
+  .table{
+    --discard-row-overlap:calc(var(--discard-tile-height) * 0.25);
+    --discard-column-overlap:calc(var(--discard-tile-width) * 0.25);
+  }
+}
+
 .table::before{
   content:"";position:absolute;inset:12%;border-radius:35%;
   border:1px solid rgba(255,255,255,.07);
@@ -419,208 +459,239 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   place-items:center;
   width:var(--discard-tile-width);
   height:var(--discard-tile-height);
-  overflow:visible
+  overflow:visible;
+  border-radius:var(--tile-highlight-radius)
 }
 
 .discard-zone{
-  position:absolute;z-index:12;display:flex;flex-wrap:wrap;
-  gap:var(--discard-tile-gap);align-content:flex-start;
-  pointer-events:none;
-  box-sizing:border-box;
-  overflow:hidden
-}
-
-/* 四家弃牌+副露分区：band 定界，子区 relative + flex，禁止 absolute 互叠 */
-.player-band{
-  position:absolute;
-  z-index:8;
-  display:flex;
-  pointer-events:none;
-  box-sizing:border-box;
-  min-width:0;
-  min-height:0;
-  gap:var(--discard-meld-gap)
-}
-.player-band .discard-zone,
-.player-band .meld-zone{
   position:relative;
-  left:auto!important;
-  right:auto!important;
-  top:auto!important;
-  bottom:auto!important;
-  z-index:auto;
+  z-index:1;
+  isolation:isolate; /* 最新弃牌 z-index 只在弃牌层内生效 */
+  pointer-events:none;
+  box-sizing:border-box;
+  overflow:visible
+}
+
+/* —— 统一座位局部区：meld → discard → event（靠桌心方向排列） —— */
+.seat-local{
+  position:absolute;
+  top:var(--seat-local-top,auto);
+  bottom:var(--seat-local-bottom,auto);
+  left:var(--seat-local-left,auto);
+  right:var(--seat-local-right,auto);
+  display:flex;
+  flex-direction:var(--seat-flex-direction,column);
+  align-items:var(--seat-align-items,center);
+  justify-content:flex-start;
+  gap:var(--seat-zone-gap);
   min-width:0;
   min-height:0;
-  overflow:hidden;
-  max-height:none!important
-}
-.player-band .meld-zone{
-  flex:0 1 auto
-}
-.player-band .discard-zone{
-  flex:1 1 auto
+  overflow:visible;
+  pointer-events:none;
+  z-index:10;
+  box-sizing:border-box
 }
 
-.player-band-top{
-  left:var(--discard-inset);
-  right:var(--discard-inset);
-  top:calc(var(--band-top) + var(--meld-gap));
-  bottom:auto;
-  height:calc(var(--meld-th) * 2 + 28px);
-  max-height:calc(var(--self-meld-band));
-  flex-direction:column;
-  align-items:stretch
+.seat-local .meld-zone{
+  display:grid;
+  grid-auto-flow:var(--meld-grid-flow,row);
+  grid-template-columns:var(--meld-grid-columns,none);
+  grid-template-rows:var(--meld-grid-rows,none);
+  flex:0 0 auto;
+  z-index:2;
+  max-width:var(--meld-max-w,none);
+  max-height:var(--meld-max-h,none);
+  align-items:var(--meld-align-items,center);
+  justify-content:var(--meld-justify-content,center);
+  align-content:var(--meld-align-content,start);
+  justify-items:center;
+  gap:var(--meld-group-gap,8px);
+  overflow:visible;
+  box-sizing:border-box;
+  pointer-events:none
 }
-.player-band-top .meld-top{
-  flex:1 1 auto;
-  max-height:100%;
-  justify-content:center;
-  flex-wrap:wrap;
-  align-content:center
+.seat-local .meld-zone:empty{display:none}
+
+.seat-local .discard-zone{
+  display:flex;
+  flex-direction:var(--discard-flex-direction,row);
+  flex-wrap:var(--discard-flex-wrap,wrap);
+  align-content:var(--discard-align-content,flex-start);
+  justify-content:var(--discard-justify-content,flex-start);
+  flex:0 0 auto;
+  width:max-content;
+  max-width:var(--discard-max-w,none);
+  max-height:var(--discard-max-h,none);
+  overflow:visible;
+  row-gap:var(--discard-tile-gap);
+  column-gap:var(--discard-tile-gap);
+  box-sizing:border-box
 }
 
-/* 对家弃牌：独立区，位于对家副露下方、朝桌心（不在 band 内便于紧凑横屏居中） */
-.discard-top{
+.seat-local .event-anchor{
+  /* 与弃牌区解耦：绝对定位；高于 discard layer；12px 内边距防越界 */
   position:absolute;
-  z-index:12;
-  left:var(--discard-inset);
-  right:var(--discard-inset);
-  top:calc(var(--band-top) + var(--meld-th) + var(--discard-meld-gap) + 24px);
-  bottom:52%;
-  overflow:hidden;
-  justify-content:center;
-  flex-direction:row-reverse;
-  flex-wrap:wrap;
-  align-content:flex-start
-}
-
-.player-band-bottom{
-  left:var(--discard-inset);
-  right:var(--discard-inset);
-  top:calc(var(--band-top) + 10%);
-  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)));
-  flex-direction:column-reverse;
-  align-items:stretch
-}
-.player-band-bottom .meld-bottom{
-  flex:0 1 auto;
-  max-height:var(--self-meld-band);
-  justify-content:center;
-  align-content:flex-end;
-  flex-wrap:wrap
-}
-.player-band-bottom .discard-bottom{
-  flex:1 1 auto;
+  z-index:40;
+  flex:0 0 auto;
+  box-sizing:border-box;
+  padding:12px;
+  width:max-content;
+  min-width:0;
+  max-width:calc(100% - 24px);
   min-height:0;
+  overflow:visible;
+  pointer-events:none
+}
+.seat-local .event-anchor:empty{display:none}
+
+/* 对家：下侧内缘锚定，向桌心（下）展开；不随弃牌扩展移动 */
+.seat-local[data-seat-side="opposite"] .event-anchor{
+  top:auto;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
   justify-content:center;
-  flex-direction:row;
-  align-content:flex-end;
-  flex-wrap:wrap
+  align-items:flex-end
 }
-
-.player-band-left{
-  left:calc(var(--band-side) + 4px);
-  top:calc(var(--band-top) + 10px);
-  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 10px);
-  flex-direction:row;
-  align-items:flex-start;
-  width:min(calc(var(--discard-tile-height) * 2 + var(--meld-rail) + var(--discard-meld-gap) + 28px),28%)
-}
-.player-band-left .meld-left{
-  flex:0 0 auto;
-  width:max(var(--meld-rail),calc(var(--meld-th) + 28px));
-  flex-direction:column;
-  flex-wrap:nowrap;
-  justify-content:flex-start
-}
-.player-band-left .discard-left{
-  flex:1 1 auto;
-  flex-direction:column;
-  justify-content:flex-start;
-  align-content:flex-start;
-  flex-wrap:wrap
-}
-
-.player-band-right{
-  right:calc(var(--band-side) + 4px);
-  top:calc(var(--band-top) + 10px);
-  bottom:calc(var(--self-hand-band) + max(4px,env(safe-area-inset-bottom,0px)) + 10px);
-  flex-direction:row;
-  align-items:flex-start;
-  width:min(calc(var(--discard-tile-height) * 2 + var(--meld-rail) + var(--discard-meld-gap) + 28px),28%)
-}
-.player-band-right .meld-right{
-  flex:0 0 auto;
-  width:max(var(--meld-rail),calc(var(--meld-th) + 28px));
-  flex-direction:column;
-  flex-wrap:nowrap;
-  justify-content:flex-start
-}
-.player-band-right .discard-right{
-  flex:1 1 auto;
-  flex-direction:column-reverse;
-  justify-content:flex-start;
-  align-content:flex-end;
-  flex-wrap:wrap
-}
-
-/* 自己：左→右；对家：右→左；左右：最新靠近自己 */
-.discard-bottom{
+/* 自己：上侧内缘锚定，向桌心（上）展开 */
+.seat-local[data-seat-side="self"] .event-anchor{
+  top:0;
+  bottom:auto;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
   justify-content:center;
-  flex-direction:row;
-  flex-wrap:wrap;
-  align-content:flex-end
+  align-items:flex-start
 }
-.discard-left,
-.discard-right{
-  flex-wrap:wrap;
-  align-items:center;
-  gap:var(--discard-tile-gap)
+/* 左家：右侧内缘锚定，向左展开（贴桌心边界内侧，不越界） */
+.seat-local[data-seat-side="left"] .event-anchor{
+  top:50%;
+  right:0;
+  left:auto;
+  transform:translateY(-50%);
+  display:flex;
+  justify-content:flex-end;
+  align-items:center
 }
-.discard-left{
-  flex-direction:column;
+/* 右家：左侧内缘锚定，向右展开 */
+.seat-local[data-seat-side="right"] .event-anchor{
+  top:50%;
+  left:0;
+  right:auto;
+  transform:translateY(-50%);
+  display:flex;
   justify-content:flex-start;
-  align-content:flex-start
-}
-.discard-right{
-  flex-direction:column-reverse;
-  justify-content:flex-start;
-  align-content:flex-end
+  align-items:center
 }
 
-/* 左右弃牌槽：布局按旋转后的占地，牌面朝向该家（与手牌一致） */
-.discard-left .discard-tile-wrap,
-.discard-right .discard-tile-wrap{
+/* 左右弃牌槽：旋转后占地对调（仅 wrapper，不旋转容器） */
+.seat-local.seat-discard-slot-swap .discard-tile-wrap{
   width:var(--discard-tile-height);
   height:var(--discard-tile-width)
 }
-.discard-bottom .discard-tile-wrap > .tile{transform:rotate(0deg)}
-.discard-top .discard-tile-wrap > .tile{transform:rotate(180deg)}
-.discard-left .discard-tile-wrap > .tile{transform:rotate(90deg)}
-.discard-right .discard-tile-wrap > .tile{transform:rotate(-90deg)}
 
-/* 最新弃牌高亮在 wrapper 上，不受牌面朝向 transform 影响 */
-.discard-tile-latest{
-  z-index:3;
-  box-shadow:0 0 0 1.5px rgba(239,199,104,.75);
-  border-radius:6px
+/* 弃牌：wrapper 负责叠压/高亮；face 只旋转牌面 */
+.discard-tile-face{
+  position:absolute;
+  left:50%;
+  top:50%;
+  display:grid;
+  place-items:center;
+  width:var(--discard-tile-width);
+  height:var(--discard-tile-height);
+  transform:translate(-50%,-50%);
+  transform-origin:center center
 }
-.discard-top .discard-tile-latest{transform:translateY(5px)}
-.discard-bottom .discard-tile-latest{transform:translateY(-5px)}
-.discard-left .discard-tile-latest{transform:translateX(5px)}
-.discard-right .discard-tile-latest{transform:translateX(-5px)}
+.seat-local .discard-tile-face{
+  transform:translate(-50%,-50%) rotate(var(--discard-tile-rotate,0deg))
+}
+.seat-local .discard-tile-face > .tile,
+.seat-local .discard-tile-wrap > .tile{
+  transform:none!important;
+  margin:0
+}
 
-.discard-tile-latest-animate{
+/* 副露：只旋转 face；黄框在 wrap 上不跟着转 */
+.seat-local .meld-tile-face{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:var(--meld-tw);
+  height:var(--meld-th);
+  transform:translate(-50%,-50%) rotate(var(--meld-tile-rotate,0deg));
+  transform-origin:center center
+}
+.seat-local .meld-tile-face > .tile,
+.seat-local .meld-tile-wrap > .tile{
+  transform:none!important
+}
+
+/* 布局调试：半透明边界框 */
+body.layout-debug .seat-local{
+  outline:1px dashed rgba(255,255,255,.45);
+  outline-offset:-1px
+}
+body.layout-debug .seat-local .discard-zone{
+  background:rgba(59,130,246,.12);
+  outline:2px solid rgba(59,130,246,.75)
+}
+body.layout-debug .seat-local .meld-zone{
+  background:rgba(234,179,8,.1);
+  outline:2px solid rgba(234,179,8,.75)
+}
+body.layout-debug .seat-local .event-anchor{
+  background:rgba(168,85,247,.1);
+  outline:2px solid rgba(168,85,247,.75)
+}
+body.layout-debug .seat-local .event-anchor:empty{
+  display:block;
+  min-height:var(--event-anchor-h)
+}
+body.layout-debug .seat-local .event-anchor:empty::after{
+  content:"event";
+  display:grid;
+  place-items:center;
+  height:100%;
+  font-size:10px;
+  color:rgba(168,85,247,.8)
+}
+
+/* 左右弃牌：高度/列容量由 JS 按副露走廊写入，禁止 height:100% 撑满整桌 */
+.seat-local[data-seat-side="left"] .discard-zone,
+.seat-local[data-seat-side="right"] .discard-zone{
+  align-self:center;
+  height:auto;
+  max-height:var(--discard-max-h,none);
+  row-gap:var(--discard-tile-gap);
+  column-gap:var(--discard-tile-gap)
+}
+.seat-local[data-seat-side="self"] .discard-zone,
+.seat-local[data-seat-side="opposite"] .discard-zone{
+  /* 宽度由 JS 按 9/8 列实宽写入；此处仅兜底 */
+  width:var(--discard-center-max-w);
+  max-width:min(100%, var(--discard-max-w, var(--discard-center-max-w)));
+  row-gap:var(--discard-tile-gap);
+  column-gap:var(--discard-tile-gap);
+  min-height:calc(var(--discard-tile-height) + var(--discard-tile-gap))
+}
+.discard-tile-latest{
+  /* 仅弃牌层内抬高；高亮走统一 ::after，禁止额外 transform */
+  z-index:30
+}
+
+.discard-tile-latest-animate.is-highlighted::after,
+.discard-tile-latest-animate.is-latest-discard::after{
   animation:discardLatestPulse 1.5s ease-out forwards
 }
 @keyframes discardLatestPulse{
   0%,12%{
     box-shadow:
       0 0 0 2px #ffe29a,
-      0 0 12px rgba(239,199,104,.7);
+      0 0 12px rgba(255,210,63,.85);
   }
   100%{
-    box-shadow:0 0 0 1.5px rgba(239,199,104,.75);
+    box-shadow:var(--tile-highlight-ring),var(--tile-highlight-glow);
   }
 }
 
@@ -1089,53 +1160,28 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 
 /* v0.9 exposed meld and action layout fix */
 
-/* 四家副露轨：band 内为 relative；独立 absolute 仅作无 band 兜底 */
+/* 副露区：由 seat-local 统一控制 flex，仅保留组/牌结构样式 */
 .meld-zone{
-  display:flex;
-  gap:5px;
-  align-items:center;
-  pointer-events:none;
-  overflow:hidden;
   box-sizing:border-box;
+  pointer-events:none
 }
 
 .meld-zone:empty{
-  display:none;
+  display:none
 }
 
-.meld-top{
-  transform:none;
-  justify-content:center;
-  flex-wrap:wrap
-}
-
-.meld-bottom{
-  justify-content:center;
-  align-content:flex-end;
-  align-items:flex-end;
-  flex-wrap:wrap;
-  gap:6px;
-  pointer-events:none
-}
-.meld-bottom:not(:empty){
-  display:flex
-}
-.meld-bottom .meld-group{
-  flex:0 0 auto;
+.seat-local[data-seat-side="opposite"] .meld-group{
+  padding-top:18px;
   padding-bottom:6px
 }
-.meld-top .meld-group{
-  padding-top:18px;
+.seat-local[data-seat-side="self"] .meld-group{
+  flex:0 0 auto;
   padding-bottom:6px
 }
 
 /* 左右副露：牌面朝向该家（槽位按旋转后占地） */
-.meld-left,
-.meld-right{
-  max-height:100%;
-  transform:none;
-  flex-direction:column;
-  flex-wrap:nowrap;
+.seat-local[data-seat-side="left"] .meld-zone,
+.seat-local[data-seat-side="right"] .meld-zone{
   align-content:flex-start;
   align-items:center;
   justify-content:flex-start;
@@ -1154,7 +1200,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   border:1px solid rgba(255,255,255,.12);
   box-shadow:0 6px 14px rgba(0,0,0,.25);
   flex:0 0 auto;
-  position:relative
+  position:relative;
+  box-sizing:border-box
 }
 
 .meld-type-peng{--meld-width-scale:1}
@@ -1174,7 +1221,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   display:inline-flex;
   flex-direction:column;
   align-items:center;
-  padding-top:calc(var(--meld-th) * .42)
+  padding-top:calc(var(--meld-th) * .42);
+  isolation:isolate
 }
 .meld-layer{
   display:flex;
@@ -1186,6 +1234,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   flex-direction:row
 }
 .meld-layer-base{
+  position:relative;
+  z-index:1;
   flex-direction:row
 }
 .meld-layer-top{
@@ -1203,40 +1253,40 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   margin-left:-3px
 }
 
-.meld-top .meld-stack{
+.seat-local[data-seat-side="opposite"] .meld-stack{
   padding-top:0;
   padding-bottom:calc(var(--meld-th) * .42)
 }
-.meld-top .meld-layer-top{
+.seat-local[data-seat-side="opposite"] .meld-layer-top{
   top:auto;
   bottom:0;
   transform:translateX(-50%)
 }
 
-.meld-left .meld-stack,
-.meld-right .meld-stack{
+.seat-local[data-seat-side="left"] .meld-stack,
+.seat-local[data-seat-side="right"] .meld-stack{
   padding-top:0
 }
-.meld-left .meld-stack{
+.seat-local[data-seat-side="left"] .meld-stack{
   padding-left:calc(var(--meld-tw) * .42)
 }
-.meld-right .meld-stack{
+.seat-local[data-seat-side="right"] .meld-stack{
   padding-right:calc(var(--meld-tw) * .42)
 }
-.meld-left .meld-layer-flat,
-.meld-left .meld-layer-base{
+.seat-local[data-seat-side="left"] .meld-layer-flat,
+.seat-local[data-seat-side="left"] .meld-layer-base{
   flex-direction:column
 }
-.meld-right .meld-layer-flat,
-.meld-right .meld-layer-base{
+.seat-local[data-seat-side="right"] .meld-layer-flat,
+.seat-local[data-seat-side="right"] .meld-layer-base{
   flex-direction:column
 }
-.meld-left .meld-layer-top{
+.seat-local[data-seat-side="left"] .meld-layer-top{
   left:0;
   top:50%;
   transform:translateY(-50%)
 }
-.meld-right .meld-layer-top{
+.seat-local[data-seat-side="right"] .meld-layer-top{
   left:auto;
   right:0;
   top:50%;
@@ -1248,53 +1298,95 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   background:rgba(2,16,12,.88)
 }
 
-/* 副露牌：wrapper 负责排列/高亮/标签；.tile 只负责朝向该家 */
+/* 副露牌：wrapper = 视觉外框/黄框；face = 仅旋转牌面 */
 .meld-tile-wrap{
   flex:0 0 auto;
   position:relative;
+  z-index:1;
   display:grid;
   place-items:center;
   width:var(--meld-tw);
   height:var(--meld-th);
   padding:0;
-  box-sizing:content-box;
-  overflow:visible
+  box-sizing:border-box;
+  overflow:visible;
+  border-radius:var(--tile-highlight-radius)
 }
-.meld-tile-wrap .tile{
+/* 两层杠层级：底 1 → 底来源框 2 → 第二层 3 → 补杠框 4 */
+.meld-layer-base .meld-tile-wrap{
+  z-index:1
+}
+.meld-layer-base .meld-tile-wrap.is-source-tile,
+.meld-layer-base .meld-tile-wrap.is-highlighted.is-source-tile{
+  z-index:2
+}
+.meld-layer-top .meld-tile-wrap{
+  z-index:3
+}
+.meld-layer-top .meld-tile-wrap.is-added-gang-tile,
+.meld-layer-top .meld-tile-wrap.is-highlighted.is-added-gang-tile{
+  z-index:4
+}
+.meld-tile-face{
+  position:absolute;
+  left:50%;
+  top:50%;
+  display:grid;
+  place-items:center;
+  width:var(--meld-tw);
+  height:var(--meld-th);
+  transform:translate(-50%,-50%);
+  transform-origin:center center
+}
+.meld-tile-wrap .tile,
+.meld-tile-face .tile{
   width:var(--meld-tw);
   height:var(--meld-th);
   cursor:default;
   margin:0;
-  transform-origin:center center
+  transform-origin:center center;
+  border-radius:var(--tile-highlight-radius)
 }
-.meld-bottom .meld-tile-wrap > .tile{transform:rotate(0deg)}
-.meld-top .meld-tile-wrap > .tile{transform:rotate(180deg)}
-.meld-left .meld-tile-wrap > .tile{transform:rotate(90deg)}
-.meld-right .meld-tile-wrap > .tile{transform:rotate(-90deg)}
-
-/* 来源牌：金色描边 + 轻微发光（无文字/箭头） */
-.meld-tile-wrap.meld-source{
-  z-index:2;
-  border-radius:5px;
-  box-shadow:
-    0 0 0 2.5px var(--gold,#e8c468),
-    0 0 10px rgba(232,196,104,.48),
-    0 2px 6px rgba(0,0,0,.28)
-}
-
-/* 左右组：纵向排列；槽位按旋转后宽高对调 */
-.meld-left .meld-group,
-.meld-right .meld-group{
+.seat-local[data-seat-side="left"] .meld-group,
+.seat-local[data-seat-side="right"] .meld-group{
   flex-direction:column;
   align-items:center;
   gap:3px;
   padding:6px 12px;
   margin:0
 }
-.meld-left .meld-tile-wrap,
-.meld-right .meld-tile-wrap{
+.seat-local[data-seat-side="left"] .meld-tile-wrap,
+.seat-local[data-seat-side="right"] .meld-tile-wrap{
   width:var(--meld-th);
   height:var(--meld-tw)
+}
+.seat-local[data-seat-side="left"] .meld-tile-face .tile,
+.seat-local[data-seat-side="right"] .meld-tile-face .tile{
+  width:var(--meld-tw);
+  height:var(--meld-th)
+}
+
+/* 四家统一：伪元素高亮，不改盒模型、不随 face 旋转 */
+.tile-highlight-wrapper{
+  position:relative
+}
+.tile-highlight-wrapper.is-highlighted::after,
+.tile-highlight-wrapper.is-source-tile::after,
+.tile-highlight-wrapper.is-latest-discard::after,
+.tile-highlight-wrapper.is-added-gang-tile::after,
+.meld-tile-wrap.meld-source::after,
+.meld-tile-wrap.is-source::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border:var(--tile-highlight-width) solid var(--tile-highlight-color);
+  border-radius:inherit;
+  box-shadow:var(--tile-highlight-ring),var(--tile-highlight-glow);
+  pointer-events:none;
+  box-sizing:border-box;
+  z-index:3;
+  transform:none!important;
+  translate:none!important
 }
 
 /* 旧的 seat 内副露隐藏，防止重复和遮挡。 */
@@ -1368,19 +1460,20 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   min-width:88px;
 }
 
-/* 座位锚定事件提示（出牌 / 碰 / 杠 / 胡，同一组件） */
-.player-event-toast{
-  position:absolute;
-  z-index:36;
+/* 座位锚定事件提示：四家统一横向组件（含设计稿 .player-event-popup 别名） */
+.player-event-toast,
+.player-event-popup{
+  position:relative;
+  z-index:1;
   display:flex;
   flex-direction:column;
   justify-content:center;
   gap:6px;
   box-sizing:border-box;
-  width:clamp(180px,28vw,240px);
-  min-height:clamp(80px,12vh,110px);
-  max-width:min(240px,42%);
-  padding:12px 14px;
+  width:max-content;
+  max-width:100%;
+  min-height:0;
+  padding:10px 12px;
   border-radius:14px;
   background:rgba(4,22,16,.92);
   border:1px solid rgba(239,199,104,.42);
@@ -1388,43 +1481,103 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   color:#f5fff8;
   pointer-events:none;
   opacity:0;
-  transition:opacity .15s ease,transform .15s ease
+  transition:opacity .15s ease
 }
-.player-event-toast.is-show{opacity:1}
-.player-event-toast.is-hide{opacity:0;transition:opacity .18s ease}
+.player-event-toast.is-show,
+.player-event-popup.is-show{opacity:1}
+.player-event-toast.is-hide,
+.player-event-popup.is-hide{opacity:0;transition:opacity .18s ease}
 
 .player-event-name{
   font-weight:950;
   color:#ffe9b0;
-  font-size:clamp(18px,2.6vw,24px);
+  font-size:clamp(16px,2.2vw,22px);
   line-height:1.15;
-  letter-spacing:.02em
+  letter-spacing:.02em;
+  white-space:nowrap
 }
 .player-event-main{
   display:flex;
   align-items:center;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;
   gap:8px 10px;
   min-width:0;
   line-height:1.2
 }
+.player-event-main-inline{
+  flex-wrap:nowrap;
+  align-items:center
+}
+
+/* 合并式事件提示（弃牌 → 碰/杠/胡升级） */
+.player-event-main-merged{
+  align-items:flex-start;
+  flex-wrap:wrap
+}
+.player-event-merged-header-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  gap:10px
+}
+.player-event-merged-header-left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0
+}
+.player-event-source-line{
+  flex-basis:100%;
+  margin-top:4px;
+  font-size:clamp(14px,2vw,18px);
+  font-weight:650;
+  color:rgba(245,255,248,.84);
+  line-height:1.3
+}
 .player-event-action{
   font-weight:950;
   color:#f6e7b2;
-  font-size:clamp(16px,2.3vw,22px);
-  line-height:1
+  font-size:clamp(16px,2.2vw,22px);
+  line-height:1;
+  white-space:nowrap
 }
 .player-event-tile-name{
   font-weight:850;
   color:#fff;
-  font-size:clamp(16px,2.2vw,20px);
-  line-height:1
+  font-size:clamp(15px,2vw,20px);
+  line-height:1;
+  white-space:nowrap
 }
+/* 浮窗独立小牌：不继承弃牌 absolute / translate / 旋转 / latest 高亮 */
+.event-popup-tile{
+  position:relative;
+  flex:0 0 auto;
+  line-height:0;
+  margin-left:2px;
+  z-index:1;
+  transform:none!important;
+  translate:none!important
+}
+.event-popup-tile .tile,
+.event-popup-tile .tile-event-mini,
+.event-popup-tile .event-popup-tile-face{
+  position:relative!important;
+  width:clamp(42px,5vw,52px);
+  height:calc(clamp(42px,5vw,52px) * 1.42);
+  margin:0!important;
+  transform:none!important;
+  translate:none!important;
+  box-shadow:none!important;
+  cursor:default
+}
+.player-event-tile,
 .player-event-mini-tile{
   flex:0 0 auto;
   line-height:0;
   margin-left:2px
 }
+.player-event-tile .tile,
 .player-event-mini-tile .tile,
 .player-event-mini-tile .tile-event-mini{
   width:clamp(42px,5vw,52px);
@@ -1453,32 +1606,6 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 .player-event-hu .player-event-action{color:#ffe29a}
 
-/* 四座位：牌桌内侧，朝中央；出现时轻移 6px */
-.player-event-bottom{
-  left:50%;
-  bottom:calc(var(--band-bottom) + 58px);
-  transform:translate(-50%,6px)
-}
-.player-event-bottom.is-show{transform:translate(-50%,0)}
-.player-event-top{
-  left:50%;
-  top:calc(var(--band-top) + 48px);
-  transform:translate(-50%,-6px)
-}
-.player-event-top.is-show{transform:translate(-50%,0)}
-.player-event-left{
-  left:max(10%,calc(var(--band-side) + var(--meld-rail,48px) + 8px));
-  top:46%;
-  transform:translate(6px,-50%)
-}
-.player-event-left.is-show{transform:translate(0,-50%)}
-.player-event-right{
-  right:max(10%,calc(var(--band-side) + var(--meld-rail,48px) + 8px));
-  top:46%;
-  transform:translate(-6px,-50%)
-}
-.player-event-right.is-show{transform:translate(0,-50%)}
-
 /* 旧 class 保留，避免残留引用报错 */
 .player-action-effect{display:none!important}
 @keyframes playerActionFloat{
@@ -1494,11 +1621,10 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     height:calc(var(--tile-h) * .46 * 1.1);
   }
 
-  .meld-left,
-  .meld-right{
-    width:max(clamp(38px,11vw,56px),calc(var(--meld-th) + 28px));
-    gap:6px;
-    overflow:hidden;
+  .seat-local[data-seat-side="left"] .meld-zone,
+  .seat-local[data-seat-side="right"] .meld-zone{
+    max-width:max(clamp(38px,11vw,56px),calc(var(--meld-th) + 28px));
+    gap:6px
   }
 
   .action-dock{
@@ -1513,17 +1639,13 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     height:calc(clamp(40px,11vw,50px) * 1.42);
   }
 
-  .player-event-left{left:calc(var(--band-side) + 10%)}
-  .player-event-right{right:calc(var(--band-side) + 10%)}
-  .player-event-bottom{bottom:calc(var(--band-bottom) + 48px)}
-  .player-event-top{top:calc(var(--band-top) + 36px)}
 }
 
 /* 平板 / 折叠（<1300）副露轨 */
 @media(min-width:900px) and (max-width:1399px) and (min-height:601px){
-  .meld-left,
-  .meld-right{
-    width:clamp(44px,5.5vw,64px);
+  .seat-local[data-seat-side="left"] .meld-zone,
+  .seat-local[data-seat-side="right"] .meld-zone{
+    max-width:clamp(44px,5.5vw,64px)
   }
 
   .seat-bottom{
@@ -1851,26 +1973,9 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     padding: 1px 4px;
   }
 
-  /* —— 2) 上家副露：22%–34% —— */
-  .player-band-top{
-    top:22%;
-    left:var(--discard-inset);
-    right:var(--discard-inset);
-    height:12%;
-    max-height:12%;
-    bottom:auto;
-    gap:0
-  }
-  .player-band-top .meld-top{
-    max-height:100%;
-    overflow:hidden;
-    flex-wrap:wrap;
-    align-content:center;
-    justify-content:center;
-    gap:3px
-  }
+  /* —— 2–4) 座位局部区：边界由 seat-layout.js 注入 --seat-local-* —— */
 
-  /* —— 3) 中央弃牌 + 计数：34%–64% —— */
+  /* —— 中央计数 —— */
   .table-center {
     top: 49%;
     left: 50%;
@@ -1891,74 +1996,6 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     margin-top: 2px;
   }
 
-  .discard-zone {
-    z-index: 4;
-  }
-
-  .player-band-left{
-    top:34%;
-    bottom:36%;
-    left:calc(2px + var(--band-side));
-    width:min(calc(var(--discard-tile-height) * 2 + var(--meld-rail) + var(--discard-meld-gap) + 16px),28%);
-    gap:var(--discard-meld-gap)
-  }
-  .player-band-right{
-    top:34%;
-    bottom:36%;
-    right:calc(2px + var(--band-side));
-    width:min(calc(var(--discard-tile-height) * 2 + var(--meld-rail) + var(--discard-meld-gap) + 16px),28%);
-    gap:var(--discard-meld-gap)
-  }
-  .player-band-left .meld-left,
-  .player-band-right .meld-right{
-    max-height:100%;
-    overflow:hidden;
-    flex-wrap:wrap;
-    gap:2px;
-    padding-top:2px
-  }
-  .player-band-left .discard-left,
-  .player-band-right .discard-right{
-    overflow:hidden;
-    flex-wrap:wrap
-  }
-
-  /* 自己：副露 64%–76%，弃牌在其上 34%–(64%-gap) */
-  .player-band-bottom{
-    top:34%;
-    bottom:24%;
-    left:var(--discard-inset);
-    right:var(--discard-inset);
-    gap:var(--discard-meld-gap)
-  }
-  .player-band-bottom .meld-bottom{
-    flex:0 1 auto;
-    max-height:38%;
-    overflow:hidden;
-    flex-wrap:wrap;
-    align-content:center;
-    gap:3px
-  }
-  .player-band-bottom .discard-bottom{
-    flex:1 1 auto;
-    min-height:0;
-    overflow:hidden;
-    flex-wrap:wrap;
-    justify-content:center;
-    align-content:flex-end
-  }
-
-  .discard-top{
-    top:32%;
-    left:max(30%,calc(50% - 11rem));
-    right:max(30%,calc(50% - 11rem));
-    bottom:66%;
-    overflow:hidden;
-    flex-wrap:wrap;
-    flex-direction:row-reverse;
-    justify-content:center;
-    align-content:flex-end
-  }
   .ng-game-toast {
     top: calc(50% + 40px);
     width: min(280px, 58%);
@@ -2071,8 +2108,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
     width: var(--meld-tw);
     height: var(--meld-th);
   }
-  .meld-left .meld-tile-wrap,
-  .meld-right .meld-tile-wrap {
+  .seat-local[data-seat-side="left"] .meld-tile-wrap,
+  .seat-local[data-seat-side="right"] .meld-tile-wrap {
     width: var(--meld-th);
     height: var(--meld-tw);
   }
@@ -2095,21 +2132,6 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   .action-dock-button .reaction-tile .tile {
     width: clamp(28px, 4vh, 40px);
     height: calc(clamp(28px, 4vh, 40px) * 1.42);
-  }
-
-  .player-event-top {
-    top: 24%;
-  }
-  .player-event-bottom {
-    bottom: calc(24% + 8px);
-  }
-  .player-event-left {
-    left: calc(var(--band-side) + var(--meld-rail) + 6px);
-    top: 49%;
-  }
-  .player-event-right {
-    right: calc(var(--band-side) + var(--meld-rail) + 6px);
-    top: 49%;
   }
 }
 

@@ -1,3 +1,169 @@
+# v0.14.70
+
+## 两层杠 z-index
+
+- 底牌 1 / 底来源框 2 / 第二层 3 / 补杠框 4
+- 取消全局 `is-source-tile { z-index:4 }`，避免盖住第二层
+- `meld-layer-base` 建立层叠上下文；`meld-stack` 加 `isolation:isolate`
+
+- Service Worker：`nocturne-games-v90`
+
+---
+# v0.14.69
+
+## 杠牌高亮目标 / 侧向弃牌框
+
+- `getHighlightedMeldTile`：直杠高亮底层来源，补杠只高亮顶层
+- 两层杠 z-index：底来源 wrap 4 > 顶牌 2 > 普通底牌 1
+- 弃牌改 `discard-tile-face`，叠压/高亮只在 wrap
+
+- Service Worker：`nocturne-games-v89`
+
+---
+# v0.14.68
+
+## 黄色高亮框对齐与加粗
+
+- 统一 CSS 变量：`#FFD23F` / `3px` / 外发光
+- 高亮改挂 `tile-highlight-wrapper::after`（伪元素），不挤占盒模型
+- 副露来源 / 补杠上层 / 最新弃牌共用同一套视觉；旋转只在 face
+
+- Service Worker：`nocturne-games-v88`
+
+---
+# v0.14.67
+
+## 事件浮窗边界约束
+
+- 四家 event-anchor：12px 内边距；`max-width: calc(100% - 24px)`
+- 左家右侧内缘锚定向左展，右家左侧内缘锚定向右展；对家下缘 / 自己上缘向桌心
+- 浮窗不随弃牌数量移动，样式保持统一横排
+
+- Service Worker：`nocturne-games-v87`
+
+---
+# v0.14.66
+
+## 对家浮窗与弃牌分层
+
+- 浮窗小牌改走 `renderEventPopupTile`（独立 DOM，class `event-popup-tile`）
+- discard-zone `isolation` + 降低 latest z-index；去掉 latest 跨层 transform
+- 对家 event-anchor 改靠桌心（`bottom:14px`），避免盖住弃牌区
+
+- Service Worker：`nocturne-games-v86`
+
+---
+# v0.14.65
+
+## 侧家来源黄框居中
+
+- `meld-tile-face` 改为绝对居中后再旋转，消除左右黄框相对牌面偏移
+
+- Service Worker：`nocturne-games-v85`
+
+---
+# v0.14.64
+
+## 侧家来源黄框对齐
+
+- 左右副露 `meld-tile-face` 使用未旋转尺寸再旋转，黄框 wrap 与牌盒对齐
+- 左右事件锚点改为 `max-content`，贴玩家侧展开
+
+- Service Worker：`nocturne-games-v84`
+
+---
+# v0.14.63
+
+## 浮窗 / 弃牌流向 / 来源黄框
+
+- 左右事件锚点靠玩家侧；出牌浮窗统一横向「名+打出+牌名+牌面」
+- 下家 `wrap-reverse` + 与上家同套列叠压；四家弃牌从各自视角左边起排
+- 副露黄框改挂 `meld-tile-wrap`（3px），旋转只在 `meld-tile-face`
+
+- Service Worker：`nocturne-games-v83`
+
+---
+# v0.14.62
+
+## 来源槽 / 左右弃牌 / 对家浮窗
+
+- `getMeldSourceSlot`：按碰牌者面朝桌心计算，对家展示左右对调（碰上家→最左）
+- 左右弃牌每列优先 9 张，第 2 列起 18% 列叠压
+- 事件锚点改为 absolute，与 discard 高度解耦（对家浮窗不再下移）
+
+- Service Worker：`nocturne-games-v82`
+
+---
+# v0.14.61
+
+## 四向弃牌容量按可用空间重平衡
+
+- 上下：优先每排 9 张（可用宽不足降 8）；第 2 排起 18% 行叠压
+- 左右：按对家/自己副露之间垂直走廊算每列张数（上限 7）；前 2 列不叠
+- 容量在 meld 渲染后按真实 DOM 矩形计算；禁止 height:100% 撑满侧栏
+
+- Service Worker：`nocturne-games-v81`
+
+---
+# v0.14.60
+
+## 上下弃牌固定 7 列 Compact
+
+- `--discard-center-cols-max`：6 → 7；去掉 `min(56%, …)` 动态压窄
+- self/opposite：`width/max-width` 固定为 7 列宽；前 14 张不叠，第 15 张起 18% 叠压
+- self：`flex-wrap: wrap-reverse`（第一排靠副露、向上增长）
+- 左右 Compact 逻辑未改
+
+- Service Worker：`nocturne-games-v80`
+
+---
+# v0.14.59
+
+## 事件提示升级 + 上下弃牌两排完整
+
+- 弃牌事件 `eventId` + `sourceEventId` 关联碰/杠/胡；同链只保留一个浮窗并合并来源文案
+- 按座位独立计时；一炮多响各胡家锚点各自显示
+- 上下家弃牌：前两排不重叠，第三排起 15%–22% 叠压；`min-height` 保证两排容量
+
+- Service Worker：`nocturne-games-v78`
+
+---
+# v0.14.58
+
+## 四向座位局部布局统一
+
+- 新增 `seat-layout.js`：`SEAT_LAYOUT` 配置驱动四向 flex/尺寸变量
+- 四家合并为 `seat-local`（meld → discard → event-anchor）
+- 事件提示挂入 `event-anchor`，移除四向绝对定位 toast
+- 布局压力模式：调试边框 + `auditSeatLayout()`
+
+- Service Worker：`nocturne-games-v62`
+
+---
+# v0.14.57
+
+## 弃牌象限边界
+
+- 新增 `table-discard-quadrant-{top,bottom,left,right}` 限定四家弃牌范围
+- 弃牌区移出 `player-band`；移除 `flex:1` / `width:100%` 撑满
+- 左右象限 `right/left:50%` 禁止跨越纵中线；侧向 `max-width` 约 26%
+
+- Service Worker：`nocturne-games-v61`
+
+---
+# v0.14.56
+
+## 弃牌区局部布局（不裁切）
+
+- 四家弃牌区独立 Grid 类（`discard-zone-self/opposite/left/right`），向桌心换行/换列
+- 移除弃牌 `overflow:hidden`；保留原有 DOM / player-band 结构
+- 左右 band `align-items:stretch`，弃牌区撑满可用高度
+- 紧凑横屏：上家副露区加高（22%–40%），对家弃牌区下移
+- 新增 localhost「布局压力」场景（各 4 副露 + 18 弃牌，clone 牌张不耗牌墙）
+
+- Service Worker：`nocturne-games-v60`
+
+---
 # v0.14.53
 
 ## 主流副露展示

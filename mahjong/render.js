@@ -1,11 +1,12 @@
 import {tileFace,tileName,tileDisplayName} from "./tiles.js?v=0.14.49";
 import {getLegalDiscardIndexes,SUIT_LABEL} from "./rules-guard.js";
-import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.53";
+import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.64";
 import {
   RELATIVE_SEAT_LABELS,
   getPlayerDisplayName,
   isValidPlayerName
 } from "./player-name.js?v=0.14.46";
+import {applySeatLayoutToTable,sideForPlayerIndex} from "./seat-layout.js?v=0.14.62";
 
 const SEAT_LABELS=RELATIVE_SEAT_LABELS;
 const SEAT_SIDE=["bottom","left","top","right"];
@@ -46,6 +47,17 @@ export function createTileElement(tile,className=""){
   return el;
 }
 
+/**
+ * 事件浮窗专用只读小牌：独立 DOM，绝不复用 / clone 弃牌节点。
+ */
+function renderEventPopupTile(tile){
+  const wrap=document.createElement("div");
+  wrap.className="event-popup-tile";
+  wrap.setAttribute("aria-hidden","true");
+  wrap.appendChild(createTileElement(tile,"tile-event-mini event-popup-tile-face"));
+  return wrap;
+}
+
 export function renderGame(state,handlers){
   document.getElementById("remaining").textContent=state.wall.length;
   document.getElementById("phase").textContent=state.phase;
@@ -67,6 +79,9 @@ export function renderGame(state,handlers){
   state.players.forEach((player,index)=>renderSeat(state,player,index,handlers));
   renderDiscards(state);
   renderMelds(state);
+  applySeatLayoutToTable(document.querySelector(".table"));
+  // 容量/边界依赖副露真实矩形，必须在 meld + seat-layout 之后再算
+  applyAllDiscardLayouts();
   renderActions(state);
   renderScores(state);
 }
@@ -205,13 +220,20 @@ function renderSeat(state,player,index,handlers){
 
 function renderMeldTile(item){
   const wrap=document.createElement("div");
-  wrap.className="meld-tile-wrap";
-  if(item.isSource)wrap.classList.add("meld-source");
-  wrap.appendChild(
+  wrap.className="meld-tile-wrap tile-highlight-wrapper";
+  if(item.isSource){
+    wrap.classList.add("is-highlighted","is-source-tile","meld-source","is-source");
+  }
+  if(item.isAddedGang)wrap.classList.add("is-added-gang-tile");
+
+  const face=document.createElement("div");
+  face.className="meld-tile-face";
+  face.appendChild(
     item.face==="back"
       ?createTileElement(null,"tile-small")
       :createTileElement(item.tile,"tile-small")
   );
+  wrap.appendChild(face);
   return wrap;
 }
 
@@ -264,7 +286,11 @@ export function renderMelds(state){
     const player=state.players[index];
     if(!player)continue;
 
-    (player.melds||[]).forEach(meld=>{
+    const seatSide=sideForPlayerIndex(index);
+    const melds=seatSide==="right"
+      ?[...(player.melds||[])].reverse()
+      :(player.melds||[]);
+    melds.forEach(meld=>{
       zone.appendChild(renderMeld(meld,index));
     });
   }
@@ -289,61 +315,315 @@ function renderDiscards(state){
     const zone=document.getElementById(`discard-${index}`);
     if(!zone)continue;
     zone.innerHTML="";
+    // 清掉上一帧内联尺寸，避免旧容量污染
+    zone.style.removeProperty("width");
+    zone.style.removeProperty("max-width");
+    zone.style.removeProperty("height");
+    zone.style.removeProperty("max-height");
+    zone.style.removeProperty("align-self");
+    zone.style.removeProperty("margin-top");
+    delete zone.dataset.discardCols;
+    delete zone.dataset.discardRows;
+    delete zone.dataset.discardDegrade;
 
-    state.discards
-      .filter(item=>item.player===index)
-      .forEach(item=>{
-        const isLatest=latest&&item===latest;
-        const wrap=document.createElement("div");
-        wrap.className="discard-tile-wrap";
-        if(isLatest){
-          wrap.classList.add("discard-tile-latest");
-          if(shouldAnimate)wrap.classList.add("discard-tile-latest-animate");
-        }
-        wrap.appendChild(createTileElement(item.tile,"tile-discard discard-tile"));
-        zone.appendChild(wrap);
-      });
+    const playerDiscards=state.discards.filter(item=>item.player===index);
+    playerDiscards.forEach((item,localIdx)=>{
+      const isLatest=latest&&item===latest;
+      const wrap=document.createElement("div");
+      wrap.className="discard-tile-wrap tile-highlight-wrapper";
+      if(isLatest){
+        wrap.classList.add(
+          "discard-tile-latest",
+          "is-highlighted",
+          "is-latest-discard"
+        );
+        if(shouldAnimate)wrap.classList.add("discard-tile-latest-animate");
+      }
+      // 仅在 discard-zone 叠层内抬高；不得盖过 event-anchor
+      wrap.style.zIndex=String(isLatest?30:(10+localIdx));
+      const face=document.createElement("div");
+      face.className="discard-tile-face";
+      face.appendChild(createTileElement(item.tile,"tile-discard discard-tile"));
+      wrap.appendChild(face);
+      zone.appendChild(wrap);
+    });
   }
 
   updateDiscardCue(latest,shouldAnimate,state.players);
 }
 
+/** 弃牌布局安全间距（相对副露外接矩形） */
+const DISCARD_SAFETY_GAP=14;
+/** 最新牌高亮 / 描边额外外边距 */
+const DISCARD_HIGHLIGHT_PAD=4;
+const DISCARD_OVERLAP_FRAC=0.18;
+const DISCARD_CENTER_COLS_PREFERRED=9;
+const DISCARD_CENTER_COLS_FALLBACK=8;
+const DISCARD_SIDE_COLS_PREFERRED=9;
+const DISCARD_SIDE_COLS_FALLBACK=8;
+const DISCARD_SIDE_MIN_PER_COL=4;
+
+function readDiscardGapPx(table){
+  const gap=parseFloat(getComputedStyle(table).getPropertyValue("--discard-tile-gap"));
+  return Number.isFinite(gap)?gap:3;
+}
+
+function lineWidthPx(cols,tileOuterW,gap){
+  return cols*tileOuterW+(cols-1)*gap+DISCARD_HIGHLIGHT_PAD;
+}
+
+function lineHeightPx(rows,tileOuterH,gap){
+  return rows*tileOuterH+(rows-1)*gap+DISCARD_HIGHLIGHT_PAD;
+}
+
+/**
+ * 上下弃牌可用宽度：左家副露右缘 → 右家副露左缘
+ */
+function getAvailableCenterWidth(tableRect){
+  const leftMeld=document.getElementById("meld-1")?.getBoundingClientRect();
+  const rightMeld=document.getElementById("meld-3")?.getBoundingClientRect();
+  const hasLeft=leftMeld&&leftMeld.width>1;
+  const hasRight=rightMeld&&rightMeld.width>1;
+  const left=hasLeft
+    ?leftMeld.right+DISCARD_SAFETY_GAP
+    :(tableRect.left+(tableRect.width*0.18));
+  const right=hasRight
+    ?rightMeld.left-DISCARD_SAFETY_GAP
+    :(tableRect.right-(tableRect.width*0.18));
+  return Math.max(0,right-left);
+}
+
+/**
+ * 左右弃牌可用高度：对家副露底边 → 自己副露顶边
+ */
+function getAvailableSideHeight(tableRect){
+  const oppMeld=document.getElementById("meld-2")?.getBoundingClientRect();
+  const selfMeld=document.getElementById("meld-0")?.getBoundingClientRect();
+  const hasOpp=oppMeld&&oppMeld.height>1;
+  const hasSelf=selfMeld&&selfMeld.height>1;
+  const top=hasOpp
+    ?oppMeld.bottom+DISCARD_SAFETY_GAP
+    :(tableRect.top+(tableRect.height*0.22));
+  const bottom=hasSelf
+    ?selfMeld.top-DISCARD_SAFETY_GAP
+    :(tableRect.bottom-(tableRect.height*0.28));
+  return Math.max(0,bottom-top);
+}
+
+/**
+ * PC/宽平板优先 9；较窄横屏降 8；极窄才允许更小。
+ * @returns {{cols:number, degrade:string|null}}
+ */
+function resolveCenterCols(availableWidth,tileOuterW,gap){
+  const need9=lineWidthPx(DISCARD_CENTER_COLS_PREFERRED,tileOuterW,gap);
+  const need8=lineWidthPx(DISCARD_CENTER_COLS_FALLBACK,tileOuterW,gap);
+  const vw=window.innerWidth||document.documentElement.clientWidth||1024;
+  const vh=window.innerHeight||document.documentElement.clientHeight||800;
+  const narrowLandscape=(vw>vh&&vw<900)||(vh<=560&&vw<1100);
+
+  if(availableWidth>=need9&&!narrowLandscape){
+    return{cols:DISCARD_CENTER_COLS_PREFERRED,degrade:null};
+  }
+  if(availableWidth>=need9&&narrowLandscape){
+    // 窄横屏：仍优先 9（空间够就用）；否则降 8
+    return{cols:DISCARD_CENTER_COLS_PREFERRED,degrade:null};
+  }
+  if(availableWidth>=need8){
+    return{
+      cols:DISCARD_CENTER_COLS_FALLBACK,
+      degrade:`availableWidth ${Math.round(availableWidth)}px < need9 ${Math.round(need9)}px`
+    };
+  }
+  // 极窄手机横屏：按可放张数，底线 6
+  const fit=Math.max(
+    6,
+    Math.floor((availableWidth-DISCARD_HIGHLIGHT_PAD+gap)/(tileOuterW+gap))
+  );
+  return{
+    cols:Math.min(DISCARD_CENTER_COLS_FALLBACK,fit),
+    degrade:`extreme narrow phone landscape: fit=${fit}, avail=${Math.round(availableWidth)}px, vw=${vw}`
+  };
+}
+
+function resolveSideRows(availableHeight,tileOuterH,gap){
+  const need9=lineHeightPx(DISCARD_SIDE_COLS_PREFERRED,tileOuterH,gap);
+  const need8=lineHeightPx(DISCARD_SIDE_COLS_FALLBACK,tileOuterH,gap);
+  if(availableHeight>=need9)return DISCARD_SIDE_COLS_PREFERRED;
+  if(availableHeight>=need8){
+    return DISCARD_SIDE_COLS_FALLBACK;
+  }
+  const raw=Math.floor((availableHeight+gap)/(tileOuterH+gap));
+  return Math.max(
+    DISCARD_SIDE_MIN_PER_COL,
+    Math.min(DISCARD_SIDE_COLS_FALLBACK,raw||DISCARD_SIDE_MIN_PER_COL)
+  );
+}
+
+function applyAllDiscardLayouts(){
+  for(let index=0;index<4;index++){
+    const zone=document.getElementById(`discard-${index}`);
+    if(zone)applyDiscardLayout(index,zone);
+  }
+}
+
+/**
+ * 统一入口：按座位方向使用不同容量参数。
+ * horizontal: 每排 9（可降 8），第 2 排起行重叠
+ * vertical: 每列优先 9（可降 8），第 2 列起列重叠
+ */
+function applyDiscardLayout(seatIndex,zone){
+  const tiles=[...zone.querySelectorAll(".discard-tile-wrap")];
+  tiles.forEach(t=>{t.style.translate="";});
+
+  const table=document.querySelector(".table");
+  if(!table)return;
+  const tableRect=table.getBoundingClientRect();
+  const gap=readDiscardGapPx(table);
+  const isHorizontal=seatIndex===0||seatIndex===2;
+
+  // 无牌时仍清尺寸，避免旧压力场景残留
+  if(!tiles.length){
+    zone.style.removeProperty("width");
+    zone.style.removeProperty("max-width");
+    zone.style.removeProperty("height");
+    zone.style.removeProperty("max-height");
+    return;
+  }
+
+  const base=tiles[0].getBoundingClientRect();
+
+  if(isHorizontal){
+    const tileW=base.width;
+    const tileH=base.height;
+    const availW=getAvailableCenterWidth(tableRect);
+    const{cols,degrade}=resolveCenterCols(availW,tileW,gap);
+    const widthPx=lineWidthPx(cols,tileW,gap);
+
+    zone.dataset.discardCols=String(cols);
+    if(degrade)zone.dataset.discardDegrade=degrade;
+    else delete zone.dataset.discardDegrade;
+
+    // 固定列宽强制换行；不用 availW 再压窄（否则会少于 cols）
+    zone.style.width=`${Math.round(widthPx)}px`;
+    zone.style.maxWidth=`${Math.round(widthPx)}px`;
+    zone.style.removeProperty("height");
+    zone.style.removeProperty("max-height");
+    zone.style.removeProperty("margin-top");
+
+    // 第一排完整；第 2 排起向第一排方向叠压 18%
+    const fullLinesBeforeOverlap=1;
+    const stepPx=gap+tileH*DISCARD_OVERLAP_FRAC;
+    const sign=seatIndex===0?1:-1; // self wrap-reverse：新行在上，向下压
+
+    tiles.forEach((t,idx)=>{
+      const line=Math.floor(idx/cols);
+      if(line<fullLinesBeforeOverlap)return;
+      const steps=line-(fullLinesBeforeOverlap-1);
+      t.style.translate=`0px ${sign*stepPx*steps}px`;
+    });
+    return;
+  }
+
+  // —— 左右：垂直走廊容量 ——
+  const tileW=base.width;
+  const tileH=base.height;
+  const oppMeld=document.getElementById("meld-2")?.getBoundingClientRect();
+  const selfMeld=document.getElementById("meld-0")?.getBoundingClientRect();
+  const availH=getAvailableSideHeight(tableRect);
+  const perCol=resolveSideRows(availH,tileH,gap);
+  const heightPx=Math.min(lineHeightPx(perCol,tileH,gap),availH||lineHeightPx(perCol,tileH,gap));
+
+  zone.dataset.discardRows=String(perCol);
+  if(perCol<DISCARD_SIDE_COLS_PREFERRED){
+    zone.dataset.discardDegrade=`side rows ${perCol} (availH ${Math.round(availH)}px < need9)`;
+  }else{
+    delete zone.dataset.discardDegrade;
+  }
+  zone.style.height=`${Math.round(heightPx)}px`;
+  zone.style.maxHeight=`${Math.round(Math.min(heightPx,availH||heightPx))}px`;
+  zone.style.alignSelf="flex-start";
+  zone.style.removeProperty("width");
+
+  // 顶端对齐「对家副露底边 + safety」，避免侵入上下副露
+  const localEl=zone.closest(".seat-local");
+  const localRect=localEl?.getBoundingClientRect();
+  if(localRect){
+    const corridorTop=
+      oppMeld&&oppMeld.height>1
+        ?oppMeld.bottom+DISCARD_SAFETY_GAP
+        :localRect.top+(localRect.height-heightPx)/2;
+    const marginTop=Math.max(0,Math.round(corridorTop-localRect.top));
+    zone.style.marginTop=`${marginTop}px`;
+  }else{
+    zone.style.removeProperty("margin-top");
+  }
+
+  // 第一列完整；第 2 列起向第一列方向叠压 18%（与上下家行重叠同比例）
+  // 左家：新列在右 → translateX 负向叠回；右家（wrap-reverse）：新列在左 → translateX 正向叠回
+  const fullLinesBeforeOverlap=1;
+  const stepPx=gap+tileW*DISCARD_OVERLAP_FRAC;
+  const sign=seatIndex===1?-1:1;
+
+  tiles.forEach((t,idx)=>{
+    const line=Math.floor(idx/perCol);
+    if(line<fullLinesBeforeOverlap)return;
+    const steps=line-(fullLinesBeforeOverlap-1);
+    t.style.translate=`${sign*stepPx*steps}px 0px`;
+    // 越新的列越高；最新弃牌仍由 discard-tile-latest 的 z-index 盖过
+    if(!t.classList.contains("discard-tile-latest")){
+      t.style.zIndex=String(10+idx);
+    }
+  });
+}
+
 let lastDiscardCueKey="";
-let activePlayerEvent=null;
-let activePlayerEventTimer=0;
-let activePlayerEventRaf=0;
-let activePlayerEventPriority=0;
+/** @type {Map<number, {el: HTMLElement, timer: number, raf: number, priority: number, eventId: number|null, action: string}>} */
+const activePlayerEvents=new Map();
+/** @type {{eventId: number, playerIndex: number}|null} */
+let activeDiscardEvent=null;
 
-function clearPlayerEventTimers(){
-  if(activePlayerEventTimer){
-    clearTimeout(activePlayerEventTimer);
-    activePlayerEventTimer=0;
+function clearPlayerEventSlot(slot){
+  if(!slot)return;
+  if(slot.timer){
+    clearTimeout(slot.timer);
+    slot.timer=0;
   }
-  if(activePlayerEventRaf){
-    cancelAnimationFrame(activePlayerEventRaf);
-    activePlayerEventRaf=0;
+  if(slot.raf){
+    cancelAnimationFrame(slot.raf);
+    slot.raf=0;
   }
 }
 
-/** 立即移除当前座位事件提示（无动画） */
+function clearPlayerEventOn(playerIndex){
+  const slot=activePlayerEvents.get(playerIndex);
+  if(!slot)return;
+  clearPlayerEventSlot(slot);
+  slot.el?.remove();
+  activePlayerEvents.delete(playerIndex);
+  if(activeDiscardEvent?.playerIndex===playerIndex)activeDiscardEvent=null;
+}
+
+/** 立即移除所有座位事件提示（无动画） */
 export function clearPlayerEvent(){
-  clearPlayerEventTimers();
-  if(activePlayerEvent?.parentNode)activePlayerEvent.remove();
-  activePlayerEvent=null;
-  activePlayerEventPriority=0;
+  for(const playerIndex of [...activePlayerEvents.keys()]){
+    clearPlayerEventOn(playerIndex);
+  }
+  activeDiscardEvent=null;
 }
 
-function dismissPlayerEvent(){
-  clearPlayerEventTimers();
-  const el=activePlayerEvent;
-  if(!el)return;
+function dismissPlayerEvent(playerIndex){
+  const slot=activePlayerEvents.get(playerIndex);
+  if(!slot)return;
+  const el=slot.el;
+  clearPlayerEventSlot(slot);
   el.classList.remove("is-show");
   el.classList.add("is-hide");
   const done=()=>{
-    if(activePlayerEvent===el){
+    const current=activePlayerEvents.get(playerIndex);
+    if(current?.el===el){
       el.remove();
-      activePlayerEvent=null;
-      activePlayerEventPriority=0;
+      activePlayerEvents.delete(playerIndex);
+      if(activeDiscardEvent?.playerIndex===playerIndex)activeDiscardEvent=null;
     }
   };
   el.addEventListener("transitionend",done,{once:true});
@@ -380,13 +660,16 @@ function buildPlayerEventCopy({
 }
 
 /**
- * 座位锚定的事件提示（单例替换）。
+ * 座位锚定的事件提示（按座位独立计时；弃牌可升级为碰/杠/胡）。
  * @param {object} options
  * @param {number} options.playerIndex 事件主角（出牌者 / 碰杠者 / 胡者）
  * @param {"discard"|"peng"|"mingGang"|"anGang"|"buGang"|"hu"} options.action
  * @param {object|null} [options.tile]
- * @param {number|null} [options.sourcePlayerIndex] 碰/直杠的出牌来源
+ * @param {number|null} [options.sourcePlayerIndex] 碰/直杠/胡的出牌来源
+ * @param {number|null} [options.sourceEventId] 关联的弃牌 eventId
+ * @param {string} [options.huSourceWord] 胡牌来源文案（放炮 / 被抢杠 / 杠上炮）
  * @param {number|null} [options.sourcePengFrom] 补杠原碰来源
+ * @param {number|null} [options.eventId] 弃牌事件 id
  * @param {Array} [options.players]
  * @param {number} [options.viewerIndex=0]
  * @param {number} [options.duration]
@@ -401,19 +684,24 @@ export function showPlayerEvent(options={}){
   if(action==="discard"&&playerIndex===0&&!options.showSelfDiscard)return;
 
   const priority=EVENT_PRIORITY[action]||1;
-  if(activePlayerEvent&&priority<activePlayerEventPriority)return;
+  const existing=activePlayerEvents.get(playerIndex);
+  if(existing&&priority<existing.priority)return;
 
   const table=document.querySelector(".table");
   if(!table)return;
 
   const players=options.players||[];
   const viewerIndex=Number.isInteger(options.viewerIndex)?options.viewerIndex:0;
+  const sourcePlayerIndex=options.sourcePlayerIndex??null;
+  const sourceEventId=options.sourceEventId??null;
+  const eventId=options.eventId??null;
+  const huSourceWord=options.huSourceWord??"放炮";
   const defaultDuration=
     action==="discard"
-      ?1600
+      ?1200
       :action==="peng"||action==="mingGang"||action==="buGang"||action==="anGang"
-        ?1000
-        :2200;
+        ?1600
+        :1800;
   const duration=Math.max(400,Number(options.duration)||defaultDuration);
   const copy=buildPlayerEventCopy({
     action,
@@ -424,78 +712,168 @@ export function showPlayerEvent(options={}){
     players,
     viewerIndex
   });
-  const side=SEAT_SIDE[playerIndex]||"bottom";
 
-  clearPlayerEvent();
+  const anchor=document.getElementById(`event-anchor-${playerIndex}`);
+  if(!anchor)return;
 
-  const el=document.createElement("div");
-  el.className=`player-event-toast player-event-${side} player-event-${copy.tone}`;
-  el.setAttribute("role","status");
-  el.setAttribute("aria-live","polite");
+  function renderInto(el){
+    el.innerHTML="";
+    el.className=`player-event-toast player-event-${copy.tone}`;
+    el.setAttribute("role","status");
+    el.setAttribute("aria-live","polite");
+    el.dataset.action=String(action);
+    el.dataset.eventId=eventId!=null?String(eventId):"";
+    el.dataset.sourceEventId=sourceEventId!=null?String(sourceEventId):"";
 
-  const nameEl=document.createElement("div");
-  nameEl.className="player-event-name";
-  nameEl.textContent=copy.name;
-  el.appendChild(nameEl);
+    const canMergeSource=
+      action!=="discard"&&
+      sourcePlayerIndex!=null&&
+      copy.tileLabel&&
+      (action==="peng"||action==="mingGang"||action==="anGang"||action==="buGang"||action==="hu");
 
-  const main=document.createElement("div");
-  main.className="player-event-main";
+    if(canMergeSource){
+      const sourceName=getPlayerDisplayName(sourcePlayerIndex,viewerIndex,players);
+      const tileLabel=copy.tileLabel;
+      const sourceLine=
+        action==="hu"
+          ?`${sourceName}${huSourceWord} · ${tileLabel}`
+          :`${sourceName}打出的 ${tileLabel}`;
 
-  const actionEl=document.createElement("span");
-  actionEl.className="player-event-action";
-  actionEl.textContent=copy.actionWord;
-  main.appendChild(actionEl);
+      const main=document.createElement("div");
+      main.className="player-event-main player-event-main-merged";
 
-  if(
-    copy.tileLabel&&
-    (action==="discard"||
-      action==="peng"||
-      action==="mingGang"||
-      action==="anGang"||
-      action==="buGang"||
-      action==="hu")
-  ){
-    const tileNameEl=document.createElement("span");
-    tileNameEl.className="player-event-tile-name";
-    tileNameEl.textContent=copy.tileLabel;
-    main.appendChild(tileNameEl);
+      const headerRow=document.createElement("div");
+      headerRow.className="player-event-merged-header-row";
+
+      const headerLeft=document.createElement("div");
+      headerLeft.className="player-event-merged-header-left";
+
+      const nameSpan=document.createElement("span");
+      nameSpan.className="player-event-name";
+      nameSpan.textContent=copy.name;
+      headerLeft.appendChild(nameSpan);
+
+      const actionSpan=document.createElement("span");
+      actionSpan.className="player-event-action";
+      actionSpan.textContent=
+        action==="hu"&&huSourceWord==="被抢杠"
+          ?"抢杠胡"
+          :copy.actionWord;
+      headerLeft.appendChild(actionSpan);
+
+      headerRow.appendChild(headerLeft);
+
+      if(options.tile){
+        headerRow.appendChild(renderEventPopupTile(options.tile));
+      }
+
+      main.appendChild(headerRow);
+
+      const sourceLineEl=document.createElement("div");
+      sourceLineEl.className="player-event-source-line";
+      sourceLineEl.textContent=sourceLine;
+      main.appendChild(sourceLineEl);
+
+      el.appendChild(main);
+    }else{
+      // 出牌等：名字 / 动作 / 牌名 / 牌面 同一横排
+      const main=document.createElement("div");
+      main.className="player-event-main player-event-main-inline";
+
+      const nameEl=document.createElement("span");
+      nameEl.className="player-event-name";
+      nameEl.textContent=copy.name;
+      main.appendChild(nameEl);
+
+      const actionEl=document.createElement("span");
+      actionEl.className="player-event-action";
+      actionEl.textContent=copy.actionWord;
+      main.appendChild(actionEl);
+
+      if(
+        copy.tileLabel&&
+        (action==="discard"||
+          action==="peng"||
+          action==="mingGang"||
+          action==="anGang"||
+          action==="buGang"||
+          action==="hu")
+      ){
+        const tileNameEl=document.createElement("span");
+        tileNameEl.className="player-event-tile-name";
+        tileNameEl.textContent=copy.tileLabel;
+        main.appendChild(tileNameEl);
+      }
+
+      if(options.tile){
+        main.appendChild(renderEventPopupTile(options.tile));
+      }
+
+      el.appendChild(main);
+
+      if(copy.detail){
+        const detail=document.createElement("div");
+        detail.className="player-event-detail";
+        detail.textContent=copy.detail;
+        el.appendChild(detail);
+      }
+    }
+
+    if(options.scoreText){
+      const score=document.createElement("div");
+      score.className="player-event-score";
+      score.textContent=options.scoreText;
+      el.appendChild(score);
+    }
   }
 
-  if(options.tile){
-    const mini=document.createElement("div");
-    mini.className="player-event-mini-tile";
-    mini.appendChild(createTileElement(options.tile,"tile-event-mini"));
-    main.appendChild(mini);
+  const shouldUpgrade=
+    activeDiscardEvent!=null&&
+    sourceEventId!=null&&
+    activeDiscardEvent.eventId===sourceEventId;
+
+  let el=null;
+  if(shouldUpgrade){
+    clearPlayerEventOn(activeDiscardEvent.playerIndex);
+    activeDiscardEvent=null;
+    clearPlayerEventOn(playerIndex);
+    el=document.createElement("div");
+    renderInto(el);
+    anchor.appendChild(el);
+  }else{
+    clearPlayerEventOn(playerIndex);
+    el=document.createElement("div");
+    renderInto(el);
+    anchor.appendChild(el);
   }
 
-  el.appendChild(main);
+  applySeatLayoutToTable(table);
 
-  if(copy.detail){
-    const detail=document.createElement("div");
-    detail.className="player-event-detail";
-    detail.textContent=copy.detail;
-    el.appendChild(detail);
+  const slot={
+    el,
+    timer:0,
+    raf:0,
+    priority,
+    eventId,
+    action
+  };
+  activePlayerEvents.set(playerIndex,slot);
+
+  if(action==="discard"&&eventId!=null){
+    activeDiscardEvent={eventId,playerIndex};
+  }else if(shouldUpgrade){
+    activeDiscardEvent=null;
   }
 
-  if(options.scoreText){
-    const score=document.createElement("div");
-    score.className="player-event-score";
-    score.textContent=options.scoreText;
-    el.appendChild(score);
-  }
-
-  table.appendChild(el);
-  activePlayerEvent=el;
-  activePlayerEventPriority=priority;
-
-  activePlayerEventRaf=requestAnimationFrame(()=>{
-    activePlayerEventRaf=0;
+  slot.raf=requestAnimationFrame(()=>{
+    slot.raf=0;
     el.classList.add("is-show");
+    el.classList.remove("is-hide");
   });
 
-  activePlayerEventTimer=setTimeout(()=>{
-    activePlayerEventTimer=0;
-    dismissPlayerEvent();
+  slot.timer=setTimeout(()=>{
+    slot.timer=0;
+    dismissPlayerEvent(playerIndex);
   },duration);
 }
 
@@ -505,8 +883,9 @@ function updateDiscardCue(latest,animate,players){
     playerIndex:latest.player,
     action:"discard",
     tile:latest.tile,
+    eventId:latest.eventId,
     players:players||[],
-    duration:1600
+    duration:1200
   });
 }
 

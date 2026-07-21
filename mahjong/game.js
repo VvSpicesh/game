@@ -1,4 +1,5 @@
 import {renderGame,renderLog,renderExchange,showReaction,hideReaction,showWin,renderRoundReveal,hideRoundReveal,showPlayerEvent,playDiceAnimation,flashDealCaption,clearDealCaption,hideStartOverlay,showLobby,showMissingSuitModal,hideMissingSuitModal} from "./render.js";
+import {applySeatLayoutToTable,setLayoutDebug,auditSeatLayout} from "./seat-layout.js?v=0.14.62";
 import {saveState,loadState,clearState} from "./storage.js";
 import {loadRules,saveRules,loadLastDealer,saveLastDealer,loadNames,saveNames,defaultRules,mergeDeep,normalizeSettlementRules} from "./config.js";
 import {tileName} from "./tiles.js";
@@ -274,6 +275,7 @@ function newGame(){
     turn:dealer,
     dealer,
     dealing:false,
+    eventSeq:1,
     discards:[],
     logs:[
       `新牌局开始。${seatWho(dealer)} 坐庄。`,
@@ -542,8 +544,9 @@ function discard(playerIndex,tileIndex){
   }
   const [tile]=player.hand.splice(tileIndex,1);
 
-  state.discards.push({player:playerIndex,tile});
-  state.lastDiscard={player:playerIndex,tile};
+  const eventId=state.eventSeq++;
+  state.discards.push({player:playerIndex,tile,eventId});
+  state.lastDiscard={player:playerIndex,tile,eventId};
   state.logs.push(`${playerCall(playerIndex)}打出 ${tileName(tile)}。`);
   state.drawnTileId=null;
   state.selectedTileIndex=null;
@@ -641,6 +644,7 @@ function claimPeng(playerIndex,tile,fromPlayer){
   }
   const player2=player;
   removeMatching(player2,tile,2);
+  const sourceEventId=state.lastDiscard?.eventId??null;
   removeLastDiscard();
   player2.melds.push({type:"peng",from:fromPlayer,tiles:Array.from({length:3},()=>cloneTile(tile))});
   state.turn=playerIndex;
@@ -655,8 +659,9 @@ function claimPeng(playerIndex,tile,fromPlayer){
     action:"peng",
     tile,
     sourcePlayerIndex:fromPlayer,
+    sourceEventId,
     players:state.players,
-    duration:2200
+    duration:1600
   });
   speakAction("碰");
 
@@ -671,6 +676,7 @@ function claimMingGang(playerIndex,tile,fromPlayer){
     return;
   }
   removeMatching(player,tile,3);
+  const sourceEventId=state.lastDiscard?.eventId??null;
   removeLastDiscard();
   player.melds.push({type:"mingGang",from:fromPlayer,tiles:Array.from({length:4},()=>cloneTile(tile))});
   state.turn=playerIndex;
@@ -685,9 +691,10 @@ function claimMingGang(playerIndex,tile,fromPlayer){
     action:"mingGang",
     tile,
     sourcePlayerIndex:fromPlayer,
+    sourceEventId,
     players:state.players,
     scoreText:settled?formatPoints(settled.pts):"",
-    duration:2200
+    duration:1600
   });
   speakAction("杠");
   drawSupplement(playerIndex);
@@ -876,9 +883,11 @@ function buildWinScoreLine(info,breakdown,delta,selfDraw,total){
 }
 
 function declareDiscardWins(winChecks,tile,fromPlayer){
+  const sourceEventId=state.lastDiscard?.eventId??null;
   removeLastDiscard();
   const gangPaohu=state.lastAction?.type==="gang"&&state.lastAction.player===fromPlayer;
   const manner=gangPaohu?"杠上炮":"点炮";
+  
 
   const checks=winChecks.map(item=>({
     index:item.index,
@@ -920,9 +929,11 @@ function declareDiscardWins(winChecks,tile,fromPlayer){
       action:"hu",
       tile,
       sourcePlayerIndex:fromPlayer,
+      sourceEventId,
+      huSourceWord:gangPaohu?"杠上炮":"放炮",
       players:state.players,
       scoreText:formatPoints(settled.deltas[index]),
-      duration:2400
+      duration:1800
     });
   });
 
@@ -996,9 +1007,10 @@ function declareRobGangWins(winners,tile,fromPlayer){
       action:"hu",
       tile,
       sourcePlayerIndex:fromPlayer,
+      huSourceWord:"被抢杠",
       players:state.players,
       scoreText:formatPoints(settled.deltas[index]),
-      duration:2400
+      duration:1800
     });
   });
 
@@ -1232,8 +1244,9 @@ function loadRuleTestScenario(){
     dealer:0,
     dealing:false,
     wall,
-    discards:[{player:3,tile:discardTile}],
-    lastDiscard:{player:3,tile:discardTile},
+    eventSeq:1,
+    discards:[{player:3,tile:discardTile,eventId:1}],
+    lastDiscard:{player:3,tile:discardTile,eventId:1},
     lastAction:null,
     pendingGang:null,
     drawnTileId:null,
@@ -1256,6 +1269,174 @@ function loadRuleTestScenario(){
   commit();
   toast("规则测试场景已加载");
   resolveClaims(discardTile,3,activePlayersAfter(3));
+}
+
+function fourMeldsForSeat(wall,fromPlayer,baseSuit,baseNum){
+  return [
+    {type:"peng",from:fromPlayer,tiles:pullTiles(wall,baseSuit,baseNum,3)},
+    {type:"peng",from:fromPlayer,tiles:pullTiles(wall,baseSuit,baseNum+1,3)},
+    {type:"peng",from:fromPlayer,tiles:pullTiles(wall,baseSuit,baseNum+2,3)},
+    {type:"mingGang",from:fromPlayer,tiles:pullTiles(wall,baseSuit,baseNum+3,4)}
+  ];
+}
+
+function stressMeldsForSeat(fromPlayer,baseSuit,baseNum){
+  const mk=(n,count)=>Array.from({length:count},(_,i)=>cloneTile({
+    s:baseSuit,n,id:`stress-m${fromPlayer}-${baseSuit}${n}-${i}`
+  }));
+  return [
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum,3)},
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum+1,3)},
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum+2,3)},
+    {type:"mingGang",from:fromPlayer,tiles:mk(baseNum+3,4)}
+  ];
+}
+
+function stressPengMeldsForSeat(fromPlayer,baseSuit,baseNum){
+  const mk=(n)=>Array.from({length:3},(_,i)=>cloneTile({
+    s:baseSuit,n,id:`stress-p${fromPlayer}-${baseSuit}${n}-${i}`
+  }));
+  return [
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum)},
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum+1)},
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum+2)},
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum+3)}
+  ];
+}
+
+function stressTwoPengTwoGangForSeat(fromPlayer,baseSuit,baseNum){
+  const mk=(n,count)=>Array.from({length:count},(_,i)=>cloneTile({
+    s:baseSuit,n,id:`stress-mix${fromPlayer}-${baseSuit}${n}-${i}`
+  }));
+  return [
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum,3)},
+    {type:"peng",from:fromPlayer,tiles:mk(baseNum+1,3)},
+    {type:"mingGang",from:fromPlayer,tiles:mk(baseNum+2,4)},
+    {type:"buGang",from:fromPlayer,tiles:mk(baseNum+3,4)}
+  ];
+}
+
+function discardsForPlayer(playerIndex,count){
+  const suits=["w","t","b"];
+  return Array.from({length:count},(_,i)=>({
+    player:playerIndex,
+    tile:cloneTile({s:suits[i%3],n:(i%9)+1,id:`stress-d${playerIndex}-${i}`}),
+    eventId:i+1+playerIndex*100
+  }));
+}
+
+/** localhost：弃牌/副露布局压力（各 4 组副露 + 18 张弃牌） */
+function loadLayoutStressScenario(variant="mixed"){
+  openingSeq++;
+  cancelAiSchedule();
+  hideReaction();
+  hideStartOverlay();
+  document.getElementById("exchangeModal").classList.remove("show");
+  document.getElementById("winModal").classList.remove("show");
+  document.getElementById("roundEndModal").classList.remove("show");
+  hideRoundReveal();
+
+  const wall=createWall();
+  const hand0=[
+    cloneTile({s:"w",n:7,id:"stress-h0-1"}),
+    cloneTile({s:"w",n:8,id:"stress-h0-2"}),
+    cloneTile({s:"w",n:9,id:"stress-h0-3"})
+  ];
+  const hand1=[
+    cloneTile({s:"t",n:7,id:"stress-h1-1"}),
+    cloneTile({s:"t",n:8,id:"stress-h1-2"})
+  ];
+  const hand2=[
+    cloneTile({s:"b",n:7,id:"stress-h2-1"}),
+    cloneTile({s:"b",n:8,id:"stress-h2-2"}),
+    cloneTile({s:"b",n:9,id:"stress-h2-3"})
+  ];
+  const hand3=[
+    cloneTile({s:"b",n:6,id:"stress-h3-1"}),
+    cloneTile({s:"t",n:9,id:"stress-h3-2"})
+  ];
+
+  const discards=[
+    ...discardsForPlayer(0,18),
+    ...discardsForPlayer(1,18),
+    ...discardsForPlayer(2,18),
+    ...discardsForPlayer(3,18)
+  ];
+  const lastDiscard=discards[discards.length-1]||null;
+
+  function suitAbsent(hand,melds){
+    const used=new Set([...(hand||[]),...((melds||[]).flatMap(m=>m.tiles||[]))].map(t=>t.s));
+    return ["w","t","b"].find(s=>!used.has(s))||"w";
+  }
+
+  const buildVariant=(seat,fromPlayer,suit,baseNum)=>{
+    if(variant==="four-peng-left-right"&&(seat===1||seat===3)){
+      return stressPengMeldsForSeat(fromPlayer,suit,baseNum);
+    }
+    if(variant==="two-peng-two-gang-left-right"&&(seat===1||seat===3)){
+      return stressTwoPengTwoGangForSeat(fromPlayer,suit,baseNum);
+    }
+    return stressMeldsForSeat(fromPlayer,suit,baseNum);
+  };
+
+  const melds0=buildVariant(0,2,"w",1);
+  const melds1=buildVariant(1,0,"t",1);
+  const melds2=buildVariant(2,0,"b",1);
+  const melds3=buildVariant(3,0,"w",5);
+
+  state={
+    version:"0.10",
+    phase:"摸牌",
+    turn:0,
+    dealer:0,
+    dealing:false,
+    wall,
+    eventSeq:1,
+    discards,
+    lastDiscard,
+    lastAction:null,
+    pendingGang:null,
+    drawnTileId:null,
+    selectedTileIndex:null,
+    players:[
+      {name:names[0],hand:hand0,melds:melds0,won:false,missingSuit:suitAbsent(hand0,melds0)},
+      {name:names[1],hand:hand1,melds:melds1,won:false,missingSuit:suitAbsent(hand1,melds1)},
+      {name:names[2],hand:hand2,melds:melds2,won:false,missingSuit:suitAbsent(hand2,melds2)},
+      {name:names[3],hand:hand3,melds:melds3,won:false,missingSuit:suitAbsent(hand3,melds3)}
+    ],
+    logs:[`【布局压力】${variant} · 四家各 4 组副露 + 18 张弃牌。`],
+    activeRules:snapshotRules({...rules,exchangeThree:false,gangRain:true}),
+    scores:loadSessionScores(),
+    roundDelta:[0,0,0,0],
+    scoreLog:[],
+    roundSettlement:emptyRoundSettlement(),
+    revealAllHands:false
+  };
+
+  [hand0,hand1,hand2,hand3].forEach(sortHand);
+  setLayoutDebug(true);
+  commit();
+  fillLayoutStressEventAnchors();
+  applySeatLayoutToTable();
+  const audit=auditSeatLayout();
+  console.log("[layout-stress audit]",audit);
+  toast("布局压力场景已加载");
+}
+
+function fillLayoutStressEventAnchors(){
+  const labels=["自己","上家","对家","下家"];
+  for(let i=0;i<4;i++){
+    const anchor=document.getElementById(`event-anchor-${i}`);
+    if(!anchor)continue;
+    anchor.innerHTML=[
+      `<div class="player-event-toast player-event-claim is-show layout-stress-event">`,
+      `<div class="player-event-main player-event-main-inline">`,
+      `<span class="player-event-name">${labels[i]}</span>`,
+      `<span class="player-event-action">碰</span>`,
+      `<span class="player-event-tile-name">一万</span>`,
+      `</div></div>`
+    ].join("");
+  }
 }
 
 /**
@@ -1401,6 +1582,22 @@ function setupRuleTestButton(){
   endBtn.title="固定：未下叫 / 花猪 / 已下叫 / 已胡 → 终局结算与亮牌";
   actions.appendChild(endBtn);
   endBtn.addEventListener("click",loadEndRoundScenario);
+
+  const stressBtn=document.createElement("button");
+  stressBtn.type="button";
+  stressBtn.id="layoutStressBtn";
+  stressBtn.className="btn btn-dev";
+  stressBtn.textContent="布局压力";
+  stressBtn.title="各 4 组副露 + 18 张弃牌";
+  actions.appendChild(stressBtn);
+  stressBtn.addEventListener("click",()=>{
+    try{
+      loadLayoutStressScenario();
+    }catch(error){
+      console.error("[layout-stress]",error);
+      toast("布局压力加载失败");
+    }
+  });
 }
 
 document.getElementById("newGameBtn").addEventListener("click",()=>{
@@ -1467,6 +1664,15 @@ window.addEventListener("pagehide",()=>{
 });
 
 setupRuleTestButton();
+
+if(isLocalDevHost()){
+  window.loadLayoutStressScenario=loadLayoutStressScenario;
+  window.auditSeatLayout=auditSeatLayout;
+}
+
+window.addEventListener("resize",()=>{
+  applySeatLayoutToTable();
+});
 
 document.getElementById("lobbyStartBtn")?.addEventListener("click",()=>{
   initAudio();
