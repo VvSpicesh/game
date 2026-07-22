@@ -348,6 +348,8 @@ export function getWinInfo(hand,melds=[],context={},rules=null){
   };
 }
 
+import {getLegalDiscardIndexes} from "./rules-guard.js";
+
 /**
  * 统一胡牌入口：缺门检查 + 牌型
  */
@@ -415,4 +417,103 @@ export function getReadyHandInfo(player,visibleTiles=[],rules=null){
   };
 }
 
-export {fanMultiplier,countTileType};
+function tileKey(tile){
+  return tile?`${tile.s}${tile.n}`:"";
+}
+
+function compareTiles(a,b){
+  return (a.s===b.s&&a.n===b.n);
+}
+
+function countKnownTiles(state){
+  const tiles=[];
+  (state?.players||[]).forEach(player=>{
+    (player.hand||[]).forEach(tile=>tiles.push(tile));
+    (player.melds||[]).forEach(meld=>{
+      (meld.tiles||[]).forEach(tile=>tiles.push(tile));
+    });
+    if(player.winTile)tiles.push(player.winTile);
+  });
+  (state?.discards||[]).forEach(item=>{
+    if(item?.tile)tiles.push(item.tile);
+  });
+  return tiles;
+}
+
+/**
+ * 分析当前玩家「打哪张可以下叫」。
+ * 仅复用既有合法出牌与查叫逻辑，不改胡牌算法。
+ */
+export function getReadyDiscardSuggestions(player,state,rules=null){
+  if(!player||player.won)return [];
+  const hand=player.hand||[];
+  if(!hand.length)return [];
+
+  const legalIndexes=getLegalDiscardIndexes(player);
+  if(!legalIndexes.length)return [];
+
+  const knownTiles=countKnownTiles(state);
+  const seenDiscardTypes=new Set();
+  const suggestions=[];
+
+  legalIndexes.forEach((discardIndex,orderIndex)=>{
+    const discardTile=hand[discardIndex];
+    if(!discardTile)return;
+
+    const discardKey=tileKey(discardTile);
+    if(seenDiscardTypes.has(discardKey))return;
+    seenDiscardTypes.add(discardKey);
+
+    const trialHand=hand.filter((_,index)=>index!==discardIndex);
+    const trialPlayer={...player,hand:trialHand};
+    const readyInfo=getReadyHandInfo(trialPlayer,knownTiles,rules);
+    if(!readyInfo.isReady)return;
+
+    const waitingTileCounts=(readyInfo.waitingTiles||[])
+      .map(tile=>{
+        const remaining=4-countTileType(knownTiles,tile.s,tile.n);
+        return {tile,remaining};
+      })
+      .filter(item=>item.remaining>0);
+
+    if(!waitingTileCounts.length)return;
+
+    const remainingCount=waitingTileCounts.reduce((sum,item)=>sum+item.remaining,0);
+    const waitingTiles=waitingTileCounts.map(item=>item.tile);
+    suggestions.push({
+      discardIndex,
+      discardTile,
+      waitingTiles,
+      waitingTileCounts,
+      remainingCount,
+      maxWinInfo:readyInfo.maxWinInfo||null,
+      _sortOrder:orderIndex
+    });
+  });
+
+  const deduped=[];
+  const seenSuggestions=new Set();
+  suggestions.forEach(item=>{
+    const maxFan=item.maxWinInfo?.totalFan||0;
+    const key=[
+      tileKey(item.discardTile),
+      item.waitingTileCounts.map(entry=>`${tileKey(entry.tile)}x${entry.remaining}`).join(","),
+      item.remainingCount,
+      maxFan
+    ].join("|");
+    if(seenSuggestions.has(key))return;
+    seenSuggestions.add(key);
+    deduped.push(item);
+  });
+
+  deduped.sort((a,b)=>
+    (b.remainingCount-a.remainingCount) ||
+    (b.waitingTiles.length-a.waitingTiles.length) ||
+    ((b.maxWinInfo?.totalFan||0)-(a.maxWinInfo?.totalFan||0)) ||
+    (a._sortOrder-b._sortOrder)
+  );
+
+  return deduped.map(({_sortOrder,...item})=>item);
+}
+
+export {fanMultiplier,countTileType,compareTiles};

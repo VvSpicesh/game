@@ -491,6 +491,9 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   z-index:10;
   box-sizing:border-box
 }
+.seat-local.seat-local-event-active{
+  z-index:55
+}
 
 .seat-local .meld-zone{
   display:grid;
@@ -498,7 +501,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   grid-template-columns:var(--meld-grid-columns,none);
   grid-template-rows:var(--meld-grid-rows,none);
   flex:0 0 auto;
-  z-index:2;
+  position:relative;
+  z-index:20;
   max-width:var(--meld-max-w,none);
   max-height:var(--meld-max-h,none);
   align-items:var(--meld-align-items,center);
@@ -519,6 +523,8 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   align-content:var(--discard-align-content,flex-start);
   justify-content:var(--discard-justify-content,flex-start);
   flex:0 0 auto;
+  position:relative;
+  z-index:10;
   width:max-content;
   max-width:var(--discard-max-w,none);
   max-height:var(--discard-max-h,none);
@@ -529,9 +535,9 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
 }
 
 .seat-local .event-anchor{
-  /* 与弃牌区解耦：绝对定位；高于 discard layer；12px 内边距防越界 */
+  /* 与弃牌区解耦：绝对定位；高于 discard / meld；12px 内边距防越界 */
   position:absolute;
-  z-index:40;
+  z-index:60;
   flex:0 0 auto;
   box-sizing:border-box;
   padding:12px;
@@ -564,25 +570,27 @@ h1{margin:0;font-size:clamp(22px,3.8vw,36px);letter-spacing:-.04em;white-space:n
   justify-content:center;
   align-items:flex-start
 }
-/* 左家：右侧内缘锚定，向左展开（贴桌心边界内侧，不越界） */
+/* 上家：靠走廊上段右侧，向桌心展开，不落入自己弃牌带 */
 .seat-local[data-seat-side="left"] .event-anchor{
-  top:50%;
+  top:clamp(8px,14%,72px);
+  bottom:auto;
   right:0;
   left:auto;
-  transform:translateY(-50%);
+  transform:none;
   display:flex;
   justify-content:flex-end;
-  align-items:center
+  align-items:flex-start
 }
-/* 右家：左侧内缘锚定，向右展开 */
+/* 下家：靠走廊上段左侧，向桌心展开 */
 .seat-local[data-seat-side="right"] .event-anchor{
-  top:50%;
+  top:clamp(8px,14%,72px);
+  bottom:auto;
   left:0;
   right:auto;
-  transform:translateY(-50%);
+  transform:none;
   display:flex;
   justify-content:flex-start;
-  align-items:center
+  align-items:flex-start
 }
 
 /* 左右弃牌槽：旋转后占地对调（仅 wrapper，不旋转容器） */
@@ -729,7 +737,7 @@ body.layout-debug .seat-local .event-anchor:empty::after{
   flex:1 1 auto;min-width:0;justify-content:flex-start
 }
 .ready-hint-inline{
-  flex:0 0 auto;display:flex;align-items:center;gap:4px;
+  flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;
   margin-left:auto;max-width:min(48%,280px);min-width:0;
   pointer-events:none
 }
@@ -748,6 +756,60 @@ body.layout-debug .seat-local .event-anchor:empty::after{
   width:var(--meld-tw);height:var(--meld-th);
   cursor:default;margin:0;flex:0 0 auto
 }
+.ready-hint-inline.is-suggestions{
+  align-items:stretch;
+  max-width:min(56%,360px)
+}
+.ready-hint-inline.is-suggestions .ready-hint-label{
+  align-self:flex-end
+}
+.ready-hint-inline.is-suggestions .ready-hint-tiles{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  gap:4px;
+  max-height:none;
+  overflow:visible
+}
+.ready-hint-suggestion{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:4px;
+  min-width:0;
+  padding:3px 4px;
+  border-radius:8px;
+  background:rgba(4,24,17,.82);
+  border:1px solid rgba(255,255,255,.08)
+}
+.ready-hint-discard,
+.ready-hint-waits,
+.ready-hint-wait-item{
+  display:flex;
+  align-items:center;
+  gap:2px
+}
+.ready-hint-discard-label,
+.ready-hint-arrow,
+.ready-hint-total,
+.ready-hint-wait-count{
+  font-size:11px;
+  line-height:1;
+  color:#dfe9dc;
+  white-space:nowrap
+}
+.ready-hint-arrow{color:var(--gold)}
+.ready-hint-waits{
+  flex:1 1 auto;
+  min-width:0;
+  flex-wrap:wrap;
+  justify-content:flex-end
+}
+.ready-hint-total{
+  color:var(--gold);
+  font-weight:800
+}
 @media (orientation:portrait) and (max-width:720px){
   .bottom-meld-row{
     flex-wrap:wrap;justify-content:flex-end;align-items:flex-end
@@ -762,6 +824,13 @@ body.layout-debug .seat-local .event-anchor:empty::after{
   .ready-hint-tiles .tile-small{
     width:calc(var(--meld-tw) * .9);
     height:calc(var(--meld-th) * .9)
+  }
+  .ready-hint-inline.is-suggestions{
+    max-width:100%
+  }
+  .ready-hint-suggestion{
+    flex-wrap:wrap;
+    justify-content:flex-end
   }
 }
 .seat-name-row{
@@ -877,7 +946,7 @@ body.layout-debug .seat-local .event-anchor:empty::after{
 }
 
 .modal{
-  position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+  position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
   padding:14px;background:rgba(0,0,0,.7)
 }
 .modal.show{display:flex}
@@ -1479,7 +1548,7 @@ body.layout-debug .seat-local .event-anchor:empty::after{
 /* 操作按钮落在底部带之上、副露轨之内。 */
 .action-dock{
   position:absolute!important;
-  z-index:50!important;
+  z-index:80!important;
   right:var(--discard-inset)!important;
   bottom:calc(var(--band-bottom) + calc(var(--tile-h) * .58 + 24px))!important;
   max-width:min(60%,620px)!important;

@@ -6,7 +6,7 @@
  */
 
 import {emptyRoundSettlement,isFlowerPig,SUIT_LABEL} from "./rules-guard.js";
-import {fanMultiplier,getReadyHandInfo} from "./hu.js";
+import {fanMultiplier,getReadyHandInfo} from "./hu.js?v=0.15.2";
 
 export const START_SCORE=20000;
 

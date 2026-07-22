@@ -1,7 +1,7 @@
 import {tileFace,tileName,tileDisplayName} from "./tiles.js?v=0.14.49";
 import {getLegalDiscardIndexes,SUIT_LABEL,hasMissingSuit} from "./rules-guard.js";
-import {getReadyHandInfo} from "./hu.js";
-import {collectVisibleTilesForReady} from "./score.js";
+import {getReadyHandInfo,getReadyDiscardSuggestions} from "./hu.js?v=0.15.2";
+import {collectVisibleTilesForReady} from "./score.js?v=0.15.2";
 import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.64";
 import {
   RELATIVE_SEAT_LABELS,
@@ -28,6 +28,7 @@ function seatDisplayName(index,name,players){
 
 const WAITING_TILE_PHASES=new Set(["摸牌","出牌","等待操作"]);
 const SUIT_SORT={w:0,t:1,b:2};
+const READY_SUGGESTION_LIMIT=3;
 
 function missingSuitBadgeHtml(player){
   if(!player?.missingSuit){
@@ -49,6 +50,68 @@ function sortWaitingTiles(tiles){
   );
 }
 
+function renderReadyTileList(container,tiles,className="tile-small"){
+  (tiles||[]).forEach(tile=>{
+    const wrap=document.createElement("div");
+    wrap.className="ready-hint-tile-wrap";
+    wrap.title=tileName(tile);
+    wrap.appendChild(createTileElement(tile,className));
+    container.appendChild(wrap);
+  });
+}
+
+function renderReadySuggestion(container,suggestion){
+  const row=document.createElement("div");
+  row.className="ready-hint-suggestion";
+
+  const discardBlock=document.createElement("div");
+  discardBlock.className="ready-hint-discard";
+
+  const discardLabel=document.createElement("span");
+  discardLabel.className="ready-hint-discard-label";
+  discardLabel.textContent="打";
+  discardBlock.appendChild(discardLabel);
+
+  const discardTileWrap=document.createElement("div");
+  discardTileWrap.className="ready-hint-discard-tile";
+  discardTileWrap.title=tileName(suggestion.discardTile);
+  discardTileWrap.appendChild(createTileElement(suggestion.discardTile,"tile-small"));
+  discardBlock.appendChild(discardTileWrap);
+  row.appendChild(discardBlock);
+
+  const arrow=document.createElement("span");
+  arrow.className="ready-hint-arrow";
+  arrow.textContent="→";
+  row.appendChild(arrow);
+
+  const waitsBlock=document.createElement("div");
+  waitsBlock.className="ready-hint-waits";
+  suggestion.waitingTileCounts.forEach(({tile,remaining})=>{
+    const waitItem=document.createElement("div");
+    waitItem.className="ready-hint-wait-item";
+    waitItem.title=`${tileName(tile)} × ${remaining}`;
+
+    const tileWrap=document.createElement("div");
+    tileWrap.className="ready-hint-wait-tile";
+    tileWrap.appendChild(createTileElement(tile,"tile-small"));
+    waitItem.appendChild(tileWrap);
+
+    const count=document.createElement("span");
+    count.className="ready-hint-wait-count";
+    count.textContent=`×${remaining}`;
+    waitItem.appendChild(count);
+    waitsBlock.appendChild(waitItem);
+  });
+  row.appendChild(waitsBlock);
+
+  const total=document.createElement("span");
+  total.className="ready-hint-total";
+  total.textContent=`共${suggestion.remainingCount}张`;
+  row.appendChild(total);
+
+  container.appendChild(row);
+}
+
 /** 听牌计算用手牌：有摸牌标记时排除新摸牌；否则 3n+2 张时去掉一张 */
 function handForWaitingTiles(player,drawnTileId){
   let hand=player?.hand||[];
@@ -63,15 +126,15 @@ function handForWaitingTiles(player,drawnTileId){
 
 function renderWaitingTiles(state){
   const root=document.getElementById("readyHintInline");
+  const label=document.getElementById("readyHintLabel");
   const grid=document.getElementById("readyHintTiles");
-  if(!root||!grid)return;
+  if(!root||!grid||!label)return;
 
   grid.innerHTML="";
   root.hidden=true;
 
   const player=state.players?.[0];
   if(!player||player.won||!WAITING_TILE_PHASES.has(state.phase))return;
-  if(hasMissingSuit(player))return;
 
   const trialPlayer={
     ...player,
@@ -80,16 +143,26 @@ function renderWaitingTiles(state){
   const visible=collectVisibleTilesForReady(state,0);
   const ready=getReadyHandInfo(trialPlayer,visible,state.activeRules);
   const waiting=sortWaitingTiles(ready.waitingTiles||[]);
-  if(!waiting.length)return;
+  if(waiting.length){
+    label.textContent="听";
+    root.hidden=false;
+    root.classList.remove("is-suggestions");
+    root.classList.add("is-ready");
+    renderReadyTileList(grid,waiting,"tile-small");
+    return;
+  }
 
+  if(state.turn!==0||state.phase!=="出牌")return;
+
+  const suggestions=getReadyDiscardSuggestions(player,state,state.activeRules)
+    .slice(0,READY_SUGGESTION_LIMIT);
+  if(!suggestions.length)return;
+
+  label.textContent="可下叫";
   root.hidden=false;
-  waiting.forEach(tile=>{
-    const wrap=document.createElement("div");
-    wrap.className="ready-hint-tile-wrap";
-    wrap.title=tileName(tile);
-    wrap.appendChild(createTileElement(tile,"tile-small"));
-    grid.appendChild(wrap);
-  });
+  root.classList.remove("is-ready");
+  root.classList.add("is-suggestions");
+  suggestions.forEach(item=>renderReadySuggestion(grid,item));
 }
 
 function wait(ms){
@@ -451,6 +524,11 @@ const DISCARD_SIDE_COLS_PREFERRED=9;
 const DISCARD_SIDE_COLS_FALLBACK=8;
 const DISCARD_SIDE_MIN_PER_COL=4;
 
+function readPx(value){
+  const num=Number.parseFloat(value||"0");
+  return Number.isFinite(num)?num:0;
+}
+
 function readDiscardGapPx(table){
   const gap=parseFloat(getComputedStyle(table).getPropertyValue("--discard-tile-gap"));
   return Number.isFinite(gap)?gap:3;
@@ -482,20 +560,28 @@ function getAvailableCenterWidth(tableRect){
 }
 
 /**
- * 左右弃牌可用高度：对家副露底边 → 自己副露顶边
+ * 左右弃牌可用高度：固定安全带（不随副露 DOM 行数变化）
  */
-function getAvailableSideHeight(tableRect){
-  const oppMeld=document.getElementById("meld-2")?.getBoundingClientRect();
-  const selfMeld=document.getElementById("meld-0")?.getBoundingClientRect();
-  const hasOpp=oppMeld&&oppMeld.height>1;
-  const hasSelf=selfMeld&&selfMeld.height>1;
-  const top=hasOpp
-    ?oppMeld.bottom+DISCARD_SAFETY_GAP
-    :(tableRect.top+(tableRect.height*0.22));
-  const bottom=hasSelf
-    ?selfMeld.top-DISCARD_SAFETY_GAP
-    :(tableRect.bottom-(tableRect.height*0.28));
+function getAvailableSideHeight(tableRect,table){
+  const cs=table?getComputedStyle(table):null;
+  const bandTop=cs?readPx(cs.getPropertyValue("--band-top")):tableRect.height*0.2;
+  const bandBottom=cs?readPx(cs.getPropertyValue("--band-bottom")):tableRect.height*0.3;
+  const sideMeldBand=cs?readPx(cs.getPropertyValue("--side-meld-band")):72;
+  const seatGap=cs?readPx(cs.getPropertyValue("--seat-zone-gap")):14;
+  const top=tableRect.top+bandTop+sideMeldBand+seatGap;
+  const bottom=tableRect.bottom-bandBottom;
   return Math.max(0,bottom-top);
+}
+
+/** 左右弃牌区顶端：相对 seat-local 的固定偏移 */
+function getSideDiscardMarginTop(localRect,table,tableRect){
+  const cs=table?getComputedStyle(table):null;
+  const sideMeldBand=cs?readPx(cs.getPropertyValue("--side-meld-band")):72;
+  const seatGap=cs?readPx(cs.getPropertyValue("--seat-zone-gap")):14;
+  const bandTop=cs?readPx(cs.getPropertyValue("--band-top")):0;
+  const localTopFromTable=localRect.top-tableRect.top;
+  const targetFromLocalTop=Math.max(0,bandTop+sideMeldBand+seatGap-localTopFromTable);
+  return Math.round(targetFromLocalTop);
 }
 
 /**
@@ -612,12 +698,10 @@ function applyDiscardLayout(seatIndex,zone){
     return;
   }
 
-  // —— 左右：垂直走廊容量 ——
+  // —— 左右：垂直走廊容量（固定安全带） ——
   const tileW=base.width;
   const tileH=base.height;
-  const oppMeld=document.getElementById("meld-2")?.getBoundingClientRect();
-  const selfMeld=document.getElementById("meld-0")?.getBoundingClientRect();
-  const availH=getAvailableSideHeight(tableRect);
+  const availH=getAvailableSideHeight(tableRect,table);
   const perCol=resolveSideRows(availH,tileH,gap);
   const heightPx=Math.min(lineHeightPx(perCol,tileH,gap),availH||lineHeightPx(perCol,tileH,gap));
 
@@ -632,16 +716,10 @@ function applyDiscardLayout(seatIndex,zone){
   zone.style.alignSelf="flex-start";
   zone.style.removeProperty("width");
 
-  // 顶端对齐「对家副露底边 + safety」，避免侵入上下副露
   const localEl=zone.closest(".seat-local");
   const localRect=localEl?.getBoundingClientRect();
   if(localRect){
-    const corridorTop=
-      oppMeld&&oppMeld.height>1
-        ?oppMeld.bottom+DISCARD_SAFETY_GAP
-        :localRect.top+(localRect.height-heightPx)/2;
-    const marginTop=Math.max(0,Math.round(corridorTop-localRect.top));
-    zone.style.marginTop=`${marginTop}px`;
+    zone.style.marginTop=`${getSideDiscardMarginTop(localRect,table,tableRect)}px`;
   }else{
     zone.style.removeProperty("margin-top");
   }
@@ -682,6 +760,14 @@ function clearPlayerEventSlot(slot){
   }
 }
 
+function syncSeatLocalEventLayers(){
+  for(let index=0;index<4;index++){
+    const local=document.getElementById(`seat-local-${index}`);
+    if(!local)continue;
+    local.classList.toggle("seat-local-event-active",activePlayerEvents.has(index));
+  }
+}
+
 function clearPlayerEventOn(playerIndex){
   const slot=activePlayerEvents.get(playerIndex);
   if(!slot)return;
@@ -689,6 +775,7 @@ function clearPlayerEventOn(playerIndex){
   slot.el?.remove();
   activePlayerEvents.delete(playerIndex);
   if(activeDiscardEvent?.playerIndex===playerIndex)activeDiscardEvent=null;
+  syncSeatLocalEventLayers();
 }
 
 /** 立即移除所有座位事件提示（无动画） */
@@ -697,6 +784,7 @@ export function clearPlayerEvent(){
     clearPlayerEventOn(playerIndex);
   }
   activeDiscardEvent=null;
+  syncSeatLocalEventLayers();
 }
 
 function dismissPlayerEvent(playerIndex){
@@ -712,6 +800,7 @@ function dismissPlayerEvent(playerIndex){
       el.remove();
       activePlayerEvents.delete(playerIndex);
       if(activeDiscardEvent?.playerIndex===playerIndex)activeDiscardEvent=null;
+      syncSeatLocalEventLayers();
     }
   };
   el.addEventListener("transitionend",done,{once:true});
@@ -935,7 +1024,7 @@ export function showPlayerEvent(options={}){
     anchor.appendChild(el);
   }
 
-  applySeatLayoutToTable(table);
+  syncSeatLocalEventLayers();
 
   const slot={
     el,

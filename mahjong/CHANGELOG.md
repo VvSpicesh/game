@@ -1,3 +1,15 @@
+# v0.15.2
+
+## 可下叫建议
+
+- 新增 `getReadyDiscardSuggestions`：枚举合法出牌后复用 `getReadyHandInfo`
+- 未下叫且轮到自己出牌时，副露右侧提示「可下叫」：打某牌 → 等待牌 ×剩余 + 共 X 张
+- 已下叫仍只显示「听」等待牌；无方案整块隐藏
+- 固定测试 RS1–RS10
+
+- Service Worker：`nocturne-games-v93`
+
+---
 # v0.15.1
 
 ## UI 布局修复

@@ -2,7 +2,7 @@
  * 完整规则验收套件（固定牌面，无随机）。
  * 返回 { cases, passed, failed, blocked, lines, ok }
  */
-import {getWinInfo,canPlayerWin,countRoots,fanMultiplier,getReadyHandInfo} from "./hu.js";
+import {getWinInfo,canPlayerWin,countRoots,fanMultiplier,getReadyHandInfo,getReadyDiscardSuggestions} from "./hu.js?v=0.15.2";
 import {
   hasMissingSuit,
   getLegalDiscardIndexes,
@@ -21,7 +21,7 @@ import {
   settleReadyHands,
   collectVisibleTilesForReady,
   capFanOf
-} from "./score.js";
+} from "./score.js?v=0.15.2";
 import {defaultRules,mergeDeep,normalizeSettlementRules} from "./config.js";
 import {tileSpeechName} from "./audio.js";
 import {
@@ -73,6 +73,8 @@ function qingYiSeHand(){
   };
 }
 function sum(arr){return (arr||[]).reduce((a,b)=>a+(Number(b)||0),0);}
+function code(tile){return tile?`${tile.s}${tile.n}`:"";}
+function codes(list){return (list||[]).map(code).join(",");}
 
 function makeState(overrides={}){
   const players=["A","B","C","D"].map(name=>({
@@ -368,6 +370,114 @@ export function runRuleTests(){
     const state=makeState({phase:"结束",revealAllHands:true});
     assert(state.revealAllHands===true);
     assert(state.phase==="结束");
+  });
+
+  record("RS1","打九万后听三万、六万","精确建议 + 等待牌",()=>{
+    const hand=tiles([["w",1],["w",2],["w",3],["w",4],["w",5],["w",9],["t",7],["t",8],["t",9],["b",1,3],["b",2,2]]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    const target=list.find(item=>item.discardTile.s==="w"&&item.discardTile.n===9);
+    assert(target,"应存在打九万建议");
+    assert(codes(target.waitingTiles)==="w3,w6",codes(target.waitingTiles));
+    assert(target.remainingCount===7,String(target.remainingCount));
+  });
+
+  record("RS2","两种不同弃牌都能下叫","返回多个不同弃牌",()=>{
+    const hand=tiles([["w",1],["w",2],["w",3],["w",4],["w",5],["w",6],["t",7],["t",8],["t",9],["b",1,3],["b",2,2]]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(list.length>=2,JSON.stringify(list));
+    assert(code(list[0].discardTile)!==code(list[1].discardTile),"前两条应为不同弃牌");
+  });
+
+  record("RS3","相同牌值重复时只显示一次","同值弃牌去重",()=>{
+    const hand=tiles([["w",1],["w",2],["w",3],["w",4],["w",5],["t",7],["t",8],["t",9],["b",1,3],["b",2,3]]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    const twos=list.filter(item=>item.discardTile.s==="b"&&item.discardTile.n===2);
+    assert(twos.length===1,JSON.stringify(list.map(item=>code(item.discardTile))));
+  });
+
+  record("RS4","等待牌已出现4张时不显示","绝张等待被过滤",()=>{
+    const hand=tiles([["w",1],["w",2],["w",3],["w",4],["w",5],["w",9],["t",7],["t",8],["t",9],["b",1,3],["b",2,2]]);
+    const state=makeState({
+      discards:[
+        {player:1,tile:T("w",6,901)},
+        {player:1,tile:T("w",6,902)},
+        {player:2,tile:T("w",6,903)},
+        {player:3,tile:T("w",6,904)}
+      ]
+    });
+    state.players[0].hand=hand;
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    const target=list.find(item=>item.discardTile.s==="w"&&item.discardTile.n===9);
+    assert(target,"应保留打九万建议");
+    assert(codes(target.waitingTiles)==="w3",codes(target.waitingTiles));
+    assert(target.remainingCount===3,String(target.remainingCount));
+  });
+
+  record("RS5","有缺门时只建议打缺门牌","合法出牌约束仍生效",()=>{
+    const hand=tiles([["w",1],["w",2],["w",3],["w",4],["w",5],["w",9],["t",7],["t",8],["t",9],["b",1,3],["b",2,2]]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    state.players[0].missingSuit="w";
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(list.every(item=>item.discardTile.s==="w"),JSON.stringify(list.map(item=>code(item.discardTile))));
+  });
+
+  record("RS6","碰后可下叫","副露存在时仍能给建议",()=>{
+    const hand=tiles([["w",1],["w",2],["w",3],["w",4],["w",5],["w",9],["t",7],["t",8],["t",9],["b",2,2]]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    state.players[0].melds=[meld("peng","b",1)];
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(list.some(item=>code(item.discardTile)==="w9"),JSON.stringify(list));
+  });
+
+  record("RS7","杠后可下叫","杠副露存在时仍能给建议",()=>{
+    const hand=tiles([["w",1],["w",2],["w",3],["w",4],["w",5],["w",9],["t",7],["t",8],["t",9],["b",2,2]]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    state.players[0].melds=[meld("mingGang","b",1,4)];
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(list.some(item=>code(item.discardTile)==="w9"),JSON.stringify(list));
+  });
+
+  record("RS8","已经下叫时不再给打哪张","13张听牌手无出牌建议",()=>{
+    const state=makeState({discards:[]});
+    state.players[0].hand=tingPingHuHand();
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(list.length===0,JSON.stringify(list));
+  });
+
+  record("RS9","无任何下叫方案时区域应隐藏","函数返回空数组",()=>{
+    const hand=tiles([["w",1],["w",4],["w",7],["t",1],["t",4],["t",7],["b",1],["b",4],["b",7],["w",9],["t",9],["b",9],["w",6],["b",3]]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(list.length===0,JSON.stringify(list));
+  });
+
+  record("RS10","建议排序按剩余张数优先","其后按种类/番数/原顺序",()=>{
+    const hand=tiles([["w",1],["w",2],["w",3],["w",4],["w",5],["w",6],["t",7],["t",8],["t",9],["b",1,3],["b",2,2]]);
+    const state=makeState({
+      discards:[
+        {player:1,tile:T("w",4,911)},
+        {player:2,tile:T("w",4,912)},
+        {player:3,tile:T("w",4,913)}
+      ]
+    });
+    state.players[0].hand=hand;
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(list.length>=2,JSON.stringify(list));
+    assert(code(list[0].discardTile)==="w1",JSON.stringify(list.map(item=>({
+      discard:code(item.discardTile),
+      remaining:item.remainingCount,
+      waits:codes(item.waitingTiles)
+    }))));
   });
 
   record("P1","平胡","baseFan=1 multiplier=1",()=>{
