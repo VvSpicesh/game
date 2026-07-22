@@ -1,10 +1,11 @@
 /**
  * 副露展示与自家手牌展示顺序（纯函数，不写 DOM）
+ *
+ * 座位：0 自己(下) / 1 上家(左) / 2 对家(上) / 3 下家(右)
  */
 
 /**
  * 拥有者面朝牌桌中央时，来源座位在其身体坐标系中的方位。
- * 座位：0 下 / 1 左 / 2 上 / 3 右（观察者视角）。
  * @returns {"left"|"middle"|"right"|null}
  */
 function getOwnerBodySourceSide(meldOwnerIndex,sourcePlayerIndex){
@@ -22,31 +23,75 @@ function getOwnerBodySourceSide(meldOwnerIndex,sourcePlayerIndex){
 }
 
 /**
- * 将拥有者身体左右映射到副露横排的展示坐标（组内从左到右）。
- * 对家面朝玩家，身体左右与屏幕左右相反，需对调。
+ * 来源相对碰/杠者 → 屏幕方位（用于标记与 class）。
+ * 按 actor 面朝桌心的身体方位，再换算到观察者屏幕方向。
+ * @param {number} actorIndex
+ * @param {number} sourceIndex
+ * @returns {"left"|"right"|"top"|"bottom"|null}
  */
-function toMeldDisplaySlot(meldOwnerIndex,bodySide){
-  if(!bodySide||bodySide==="middle")return bodySide;
-  if(meldOwnerIndex===2){
-    return bodySide==="left"?"right":"left";
+export function getMeldSourcePosition(actorIndex,sourceIndex){
+  const body=getOwnerBodySourceSide(actorIndex,sourceIndex);
+  if(!body)return null;
+
+  // 自己：面朝上；左/右=屏幕左右；对家=朝上（组内居中）
+  if(actorIndex===0){
+    if(body==="left")return "left";
+    if(body==="right")return "right";
+    return "top";
   }
-  return bodySide;
+  // 对家：面朝下；身体左右与屏幕相反
+  if(actorIndex===2){
+    if(body==="left")return "right";
+    if(body==="right")return "left";
+    return "bottom";
+  }
+  // 上家（左）：面朝右；身体左=屏幕上，身体右=屏幕下
+  if(actorIndex===1){
+    if(body==="left")return "top";
+    if(body==="right")return "bottom";
+    return "right";
+  }
+  // 下家（右）：面朝左；身体左=屏幕下，身体右=屏幕上
+  if(actorIndex===3){
+    if(body==="left")return "bottom";
+    if(body==="right")return "top";
+    return "left";
+  }
+  return null;
 }
 
 /**
- * 副露来源牌槽位（展示用 left/middle/right）。
- * 先按碰牌者面朝桌心的身体方位，再映射到当前座位的横排展示坐标。
+ * 屏幕方位 → 组内 flex 槽位（横排 left→右；竖列 top→下 = left/middle/right 槽）
+ * @returns {"left"|"middle"|"right"|null}
+ */
+function screenPositionToFlexSlot(actorIndex,screenPos){
+  if(!screenPos)return null;
+  const vertical=actorIndex===1||actorIndex===3;
+  if(vertical){
+    if(screenPos==="top")return "left";
+    if(screenPos==="bottom")return "right";
+    return "middle";
+  }
+  if(screenPos==="left")return "left";
+  if(screenPos==="right")return "right";
+  return "middle";
+}
+
+/**
+ * 副露来源牌槽位（展示用 left/middle/right，兼容旧逻辑）。
  * @param {number} meldOwnerIndex 碰/杠者
  * @param {number} sourcePlayerIndex 出牌者
  * @returns {"left"|"middle"|"right"|null}
  */
 export function getMeldSourceSlot(meldOwnerIndex,sourcePlayerIndex){
-  const body=getOwnerBodySourceSide(meldOwnerIndex,sourcePlayerIndex);
-  return toMeldDisplaySlot(meldOwnerIndex,body);
+  return screenPositionToFlexSlot(
+    meldOwnerIndex,
+    getMeldSourcePosition(meldOwnerIndex,sourcePlayerIndex)
+  );
 }
 
 /**
- * 相对副露拥有者的来源位（展示坐标）。
+ * 相对副露拥有者的来源位（flex 槽）。
  * @param {number} ownerIndex
  * @param {number} fromPlayerIndex
  * @returns {"left"|"middle"|"right"|null}
@@ -101,9 +146,13 @@ export function normalizeMeldFrom(meld){
   return from;
 }
 
-function sourceSlotIndex(position,count){
-  if(position==="left")return 0;
-  if(position==="right")return Math.max(0,count-1);
+/**
+ * @param {"left"|"middle"|"right"|null} flexSlot
+ * @param {number} count
+ */
+function sourceSlotIndex(flexSlot,count){
+  if(flexSlot==="left")return 0;
+  if(flexSlot==="right")return Math.max(0,count-1);
   return Math.floor((count-1)/2);
 }
 
@@ -121,9 +170,9 @@ export function getHighlightedMeldTile(meld,ownerSeat){
 
   if(type==="peng"||type==="mingGang"){
     if(from==null)return null;
-    const position=getMeldSourceSlot(ownerSeat,from);
-    if(!position)return null;
-    return {layer:"base",baseIndex:sourceSlotIndex(position,3)};
+    const flex=getMeldSourceSlot(ownerSeat,from);
+    if(!flex)return null;
+    return {layer:"base",baseIndex:sourceSlotIndex(flex,3)};
   }
 
   if(type==="buGang"){
@@ -166,13 +215,13 @@ function applyTopHighlight(items,highlight){
  * @param {number} count
  */
 function buildOrientedRow(rowTiles,ownerSeat,from,count){
-  const position=from!=null?getMeldSourceSlot(ownerSeat,from):null;
+  const flex=from!=null?getMeldSourceSlot(ownerSeat,from):null;
   const slice=rowTiles.slice(0,count);
-  if(!position||slice.length<2){
+  if(!flex||slice.length<2){
     return slice.map(tile=>({tile,isSource:false,face:"show"}));
   }
 
-  const sourceIndex=sourceSlotIndex(position,count);
+  const sourceIndex=sourceSlotIndex(flex,count);
   const pool=slice.slice();
   const sourceTile=pool[0];
   const items=[];
@@ -196,6 +245,7 @@ const MELD_WIDTH_SCALE={
 
 /**
  * 副露展示计划：分层（碰单层 / 明杠·补杠三+一 / 暗杠四+二）
+ * sourcePosition = 屏幕方位 left|right|top|bottom（供 class）
  * @param {object|null|undefined} meld
  * @param {number} ownerSeat
  */
@@ -205,7 +255,7 @@ export function buildMeldTilePlan(meld,ownerSeat){
   const from=normalizeMeldFrom(meld);
   const sourcePosition=
     (type==="peng"||type==="mingGang")&&from!=null
-      ?getMeldSourceSlot(ownerSeat,from)
+      ?getMeldSourcePosition(ownerSeat,from)
       :null;
   const widthScale=MELD_WIDTH_SCALE[type]??1;
 
@@ -290,7 +340,7 @@ export function meldDisplayInfo(meld,ownerSeat){
 }
 
 /**
- * 自家手牌展示顺序：新摸牌固定最右，不参与中间视觉排序；不改变 hand 数组。
+ * 自家手牌展示顺序：新摸牌固定最右侧，不参与中间区间排序；不改动 hand 数组。
  * @param {object[]} hand
  * @param {string|null|undefined} drawnTileId
  * @returns {{tile:object,tileIndex:number,isDraw:boolean}[]}

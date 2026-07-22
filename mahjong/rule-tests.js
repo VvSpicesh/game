@@ -2,7 +2,7 @@
  * 完整规则验收套件（固定牌面，无随机）。
  * 返回 { cases, passed, failed, blocked, lines, ok }
  */
-import {getWinInfo,canPlayerWin,countRoots,fanMultiplier,getReadyHandInfo,getReadyDiscardSuggestions} from "./hu.js?v=0.15.2";
+import {getWinInfo,canPlayerWin,countRoots,fanMultiplier,getReadyHandInfo,getReadyDiscardSuggestions,countTileType,waitingTilesKey} from "./hu.js?v=0.15.8";
 import {
   hasMissingSuit,
   getLegalDiscardIndexes,
@@ -21,13 +21,14 @@ import {
   settleReadyHands,
   collectVisibleTilesForReady,
   capFanOf
-} from "./score.js?v=0.15.2";
+} from "./score.js?v=0.15.8";
 import {defaultRules,mergeDeep,normalizeSettlementRules} from "./config.js";
 import {tileSpeechName} from "./audio.js";
 import {
   relativeSeatDirection,
   getRelativeSourcePosition,
   getMeldSourceSlot,
+  getMeldSourcePosition,
   getRelativeSourceTag,
   getMeldOwnerNudge,
   normalizeMeldFrom,
@@ -446,7 +447,7 @@ export function runRuleTests(){
     assert(list.some(item=>code(item.discardTile)==="w9"),JSON.stringify(list));
   });
 
-  record("RS8","已经下叫时不再给打哪张","13张听牌手无出牌建议",()=>{
+  record("RS8","13张听牌手无出牌建议","非出牌张数不产生下叫/换听",()=>{
     const state=makeState({discards:[]});
     state.players[0].hand=tingPingHuHand();
     const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
@@ -478,6 +479,204 @@ export function runRuleTests(){
       remaining:item.remainingCount,
       waits:codes(item.waitingTiles)
     }))));
+  });
+
+  /** 14 张：34567万 + 234567条 + 88筒 + 1筒；打一筒后听 2/5/8 万 */
+  function tripleWaitHand14(){
+    return tiles([
+      ["w",3],["w",4],["w",5],["w",6],["w",7],
+      ["t",2],["t",3],["t",4],["t",5],["t",6],["t",7],
+      ["b",8,2],["b",1]
+    ]);
+  }
+
+  record("RS11","打一筒后三面听","建议含 w2/w5/w8",()=>{
+    const hand=tripleWaitHand14();
+    const state=makeState({discards:[],wall:[]});
+    state.players[0].hand=hand;
+    state.players[0].missingSuit=null;
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    const target=list.find(item=>item.discardTile.s==="b"&&item.discardTile.n===1);
+    assert(target,"应存在打一筒建议");
+    assert(codes(target.waitingTiles)==="w2,w5,w8",codes(target.waitingTiles));
+    assert(target.waitingTiles.length===3);
+  });
+
+  record("RS12","打出后正式听牌仍三张","含牌墙时不误杀等待牌",()=>{
+    const hand14=tripleWaitHand14();
+    const hand13=hand14.filter(t=>!(t.s==="b"&&t.n===1));
+    assert(hand13.length===13);
+    const state=makeState({
+      discards:[{player:0,tile:T("b",1,990)}],
+      wall:tiles([["w",1,4],["w",2,4],["w",5,4],["w",8,4],["t",1,4],["b",2,4],["b",3,4],["b",9,4]])
+    });
+    state.players[0].hand=hand13;
+    state.players[0].missingSuit=null;
+    const visible=collectVisibleTilesForReady(state,0);
+    assert(!(state.wall||[]).some(w=>visible.includes(w)),"visible 不应含牌墙对象");
+    const ready=getReadyHandInfo(state.players[0],visible,defaultRules);
+    assert(ready.isReady===true);
+    assert(ready.waitingTiles.length===3,codes(ready.waitingTiles));
+    assert(codes(ready.waitingTiles)==="w2,w5,w8",codes(ready.waitingTiles));
+    assert(countTileType(visible,"w",2)<4);
+    assert(countTileType(visible,"w",5)<4);
+    assert(countTileType(visible,"w",8)<4);
+  });
+
+  /** 14 张：已听五筒；可换听打五筒→听四五六筒对倒 */
+  function changeReadyHand14(){
+    return tiles([
+      ["w",1],["w",2],["w",3],["w",7],["w",8],["w",9],
+      ["t",1],["t",2],["t",3],
+      ["b",4,2],["b",5],["b",6,2]
+    ]);
+  }
+
+  record("RS13","打五筒换听四筒六筒","changeOnly 含 b5→b4,b6",()=>{
+    const hand=changeReadyHand14();
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    state.players[0].missingSuit=null;
+    const baseline=[{s:"b",n:5}];
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules,{
+      baselineWaitingTiles:baseline,
+      changeOnly:true
+    });
+    const target=list.find(item=>item.discardTile.s==="b"&&item.discardTile.n===5);
+    assert(target,"应存在打五筒换听建议");
+    assert(codes(target.waitingTiles)==="b4,b6",codes(target.waitingTiles));
+    assert(waitingTilesKey(target.waitingTiles)!==waitingTilesKey(baseline));
+  });
+
+  record("RS14","已听仍分析换听","当前听 b5 时建议非空且等待变化",()=>{
+    const hand=tiles([
+      ["w",1],["w",2],["w",3],["w",7],["w",8],["w",9],
+      ["t",1],["t",2],["t",3],
+      ["b",4],["b",5,2],["b",6],["t",5]
+    ]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    state.players[0].missingSuit=null;
+    const cur=getReadyHandInfo({...state.players[0],hand:hand.slice(0,-1)},[],defaultRules);
+    assert(codes(cur.waitingTiles)==="b5",codes(cur.waitingTiles));
+    const open=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(open.length>0,"出牌张应有下叫/换听候选");
+    const change=getReadyDiscardSuggestions(state.players[0],state,defaultRules,{
+      baselineWaitingTiles:cur.waitingTiles,
+      changeOnly:true
+    });
+    assert(change.length>0,"已听时仍应给出换听建议");
+    assert(change.every(item=>waitingTilesKey(item.waitingTiles)!=="b5"
+      ||item.remainingCount>0),JSON.stringify(change.map(i=>({d:code(i.discardTile),w:codes(i.waitingTiles)}))));
+    assert(change.some(item=>waitingTilesKey(item.waitingTiles)!=="b5"),"至少一条等待集合变化");
+  });
+
+  record("RS15","单面听可变多面听","换听后 waitingTiles.length>1",()=>{
+    const hand=tiles([
+      ["w",1],["w",2],["w",3],["w",7],["w",8],["w",9],
+      ["t",1],["t",2],["t",3],
+      ["b",4,2],["b",5],["b",6,2]
+    ]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    const change=getReadyDiscardSuggestions(state.players[0],state,defaultRules,{
+      baselineWaitingTiles:[{s:"b",n:5}],
+      changeOnly:true
+    });
+    const multi=change.find(item=>item.waitingTiles.length>=2);
+    assert(multi,JSON.stringify(change.map(i=>({d:code(i.discardTile),w:codes(i.waitingTiles)}))));
+  });
+
+  record("RS16","多面听可变单面听","换听后可为单面",()=>{
+    const hand=tiles([
+      ["w",1],["w",2],["w",3],["w",7],["w",8],["w",9],
+      ["t",1],["t",2],["t",3],
+      ["b",4],["b",5,2],["b",6],["t",5]
+    ]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    const cur=getReadyHandInfo({...state.players[0],hand:hand.slice(0,-1)},[],defaultRules);
+    const change=getReadyDiscardSuggestions(state.players[0],state,defaultRules,{
+      baselineWaitingTiles:cur.waitingTiles,
+      changeOnly:true
+    });
+    assert(change.some(item=>item.waitingTiles.length===1),JSON.stringify(change.map(i=>codes(i.waitingTiles))));
+  });
+
+  record("RS17","同等待集合更高剩余可保留","remaining 更优也算换听",()=>{
+    const hand=tiles([
+      ["w",1],["w",2],["w",3],["w",4],["w",5],["w",9],
+      ["t",7],["t",8],["t",9],["b",1,3],["b",2,2]
+    ]);
+    const state=makeState({
+      discards:[
+        {player:1,tile:T("w",3,801)},
+        {player:2,tile:T("w",6,802)}
+      ]
+    });
+    state.players[0].hand=hand;
+    const open=getReadyDiscardSuggestions(state.players[0],state,defaultRules);
+    assert(open.length>=1);
+    const baseline=open[0].waitingTiles;
+    const sameKey=getReadyDiscardSuggestions(state.players[0],state,defaultRules,{
+      baselineWaitingTiles:baseline,
+      baselineRemainingCount:0,
+      changeOnly:true
+    });
+    assert(sameKey.some(item=>waitingTilesKey(item.waitingTiles)===waitingTilesKey(baseline)
+      &&item.remainingCount>0),"剩余张数更高时应保留");
+  });
+
+  record("RS18","打出后不再听则不进建议","changeOnly 过滤非听",()=>{
+    const hand=tiles([
+      ["w",1],["w",2],["w",3],["w",7],["w",8],["w",9],
+      ["t",1],["t",2],["t",3],
+      ["b",4],["b",5,2],["b",6],["t",5]
+    ]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    const cur=getReadyHandInfo({...state.players[0],hand:hand.slice(0,-1)},[],defaultRules);
+    const change=getReadyDiscardSuggestions(state.players[0],state,defaultRules,{
+      baselineWaitingTiles:cur.waitingTiles,
+      changeOnly:true
+    });
+    assert(change.every(item=>item.waitingTiles.length>0));
+    // 打一张散牌若不听，不应出现在列表（由 isReady 过滤）
+    const broken=hand.filter((_,i)=>i!==hand.findIndex(t=>t.s==="w"&&t.n===1));
+    const after=getReadyHandInfo({...state.players[0],hand:broken},[],defaultRules);
+    if(!after.isReady){
+      assert(!change.some(item=>item.discardTile.s==="w"&&item.discardTile.n===1
+        &&!item.waitingTiles.length));
+    }
+  });
+
+  record("RS19","有缺门时换听只分析合法弃牌","缺门约束",()=>{
+    const hand=changeReadyHand14();
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    state.players[0].missingSuit="b";
+    const list=getReadyDiscardSuggestions(state.players[0],state,defaultRules,{
+      baselineWaitingTiles:[{s:"b",n:5}],
+      changeOnly:true
+    });
+    assert(list.every(item=>item.discardTile.s==="b"),JSON.stringify(list.map(i=>code(i.discardTile))));
+  });
+
+  record("RS20","已听无换听时建议为空","打无用牌保持原听被过滤",()=>{
+    const base=tingPingHuHand();
+    const draw=T("w",9,500);
+    const hand=base.concat([draw]);
+    const state=makeState({discards:[]});
+    state.players[0].hand=hand;
+    state.players[0].missingSuit=null;
+    const cur=getReadyHandInfo({...state.players[0],hand:base},[],defaultRules);
+    assert(cur.isReady&&codes(cur.waitingTiles)==="b5",codes(cur.waitingTiles));
+    const change=getReadyDiscardSuggestions(state.players[0],state,defaultRules,{
+      baselineWaitingTiles:cur.waitingTiles,
+      changeOnly:true
+    });
+    assert(!change.some(item=>item.discardTile.s==="w"&&item.discardTile.n===9),
+      "打无用牌且等待不变不应出现在换听");
   });
 
   record("P1","平胡","baseFan=1 multiplier=1",()=>{
@@ -697,7 +896,10 @@ export function runRuleTests(){
   });
 
   record("MV1b","对家碰上家展示最左","getMeldSourceSlot 对家↔上家",()=>{
-    // 对家(2) 碰上家(1)：展示槽必须在最左（身体右侧映射到屏幕左）
+    // 对家(2) 碰上家(1)：屏幕左 = flex 最左
+    assert(getMeldSourcePosition(2,1)==="left");
+    assert(getMeldSourcePosition(2,3)==="right");
+    assert(getMeldSourcePosition(2,0)==="bottom");
     assert(getMeldSourceSlot(2,1)==="left");
     assert(getMeldSourceSlot(2,3)==="right");
     assert(getMeldSourceSlot(2,0)==="middle");
@@ -709,18 +911,52 @@ export function runRuleTests(){
   });
 
   record("MV1c","四家碰三向来源槽","owner×source 全覆盖",()=>{
-    // 自己
+    // 自己：横排 left/middle/right
+    assert(getMeldSourcePosition(0,1)==="left");
+    assert(getMeldSourcePosition(0,2)==="top");
+    assert(getMeldSourcePosition(0,3)==="right");
     assert(getMeldSourceSlot(0,1)==="left");
     assert(getMeldSourceSlot(0,2)==="middle");
     assert(getMeldSourceSlot(0,3)==="right");
-    // 左家
+    // 上家（左竖列）：top/middle/bottom → flex left/middle/right
+    assert(getMeldSourcePosition(1,2)==="top");
+    assert(getMeldSourcePosition(1,3)==="right");
+    assert(getMeldSourcePosition(1,0)==="bottom");
     assert(getMeldSourceSlot(1,2)==="left");
     assert(getMeldSourceSlot(1,3)==="middle");
     assert(getMeldSourceSlot(1,0)==="right");
-    // 右家
-    assert(getMeldSourceSlot(3,0)==="left");
+    // 下家（右竖列）：自己→bottom（组内最下），对家→top
+    assert(getMeldSourcePosition(3,0)==="bottom");
+    assert(getMeldSourcePosition(3,1)==="left");
+    assert(getMeldSourcePosition(3,2)==="top");
+    assert(getMeldSourceSlot(3,0)==="right");
     assert(getMeldSourceSlot(3,1)==="middle");
-    assert(getMeldSourceSlot(3,2)==="right");
+    assert(getMeldSourceSlot(3,2)==="left");
+  });
+
+  record("MV1d","12组合屏幕方位","actor×source 完整",()=>{
+    const expect={
+      "0-1":"left","0-2":"top","0-3":"right",
+      "1-0":"bottom","1-2":"top","1-3":"right",
+      "2-0":"bottom","2-1":"left","2-3":"right",
+      "3-0":"bottom","3-1":"left","3-2":"top"
+    };
+    for(const[key,pos]of Object.entries(expect)){
+      const[a,s]=key.split("-").map(Number);
+      assert(getMeldSourcePosition(a,s)===pos,`${key}→${pos}`);
+    }
+    // 下家碰自己：来源在竖列最后一张（最下）
+    const tiles=[T("b",8,1),T("b",8,2),T("b",8,3)];
+    const plan=buildMeldTilePlan({type:"peng",from:0,tiles},3);
+    assert(plan.sourcePosition==="bottom");
+    assert(plan.layers.base[2].isSource===true);
+    const gang=buildMeldTilePlan({
+      type:"mingGang",
+      from:0,
+      tiles:[T("w",1,1),T("w",1,2),T("w",1,3),T("w",1,4)]
+    },3);
+    assert(gang.sourcePosition==="bottom");
+    assert(gang.layers.base[2].isSource===true);
   });
 
   record("MV2","补杠只高亮顶层补牌","来源框在 top 不在 base",()=>{

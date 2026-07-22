@@ -1,3 +1,181 @@
+# v0.15.18
+
+## 普通手机横屏恢复纵向滚动
+
+- 修复 compact-landscape 把 `.app` / `.table` 高度锁死导致底部手牌被截断
+- 改为 `game-layout` 内部纵向滚动，保留顶部区域；增加 safe-area 底部留白与 scroll padding
+- 未改动出牌、碰杠胡、计分与桌面端布局
+
+- Service Worker：`nocturne-games-v109`
+
+---
+# v0.15.17
+
+## 修复测试模板按钮失效
+
+- `已胡徽标四家`、`终局超长内容` 改为使用独立测试牌数据，不再受牌墙 4 张上限影响
+- 两个按钮补 `try/catch`，加载失败时直接 toast
+
+- Service Worker：`nocturne-games-v108`
+
+---
+# v0.15.16
+
+## 终局弹窗布局优化
+
+- `roundRevealModal` 每位玩家改为左侧主内容 + 右侧固定分数区
+- 终局牌面放大约 25%；副露略小、胡牌张略大
+- 左侧牌组可整体换行，不侵入右侧总分保护区
+- localhost 新增「终局超长内容」验收场景
+
+- Service Worker：`nocturne-games-v107`
+
+---
+# v0.15.15
+
+## 胡牌提示改为横向布局
+
+- 胡牌小提示改为左侧文字、右侧牌面的横排结构；确认按钮仍在底部整行
+- 牌面继续复用 `createTileElement`，尺寸调为约桌面 80%
+
+- Service Worker：`nocturne-games-v106`
+
+---
+# v0.15.14
+
+## 胡牌提示显示牌面图案
+
+- 胡牌小提示底部增加「胡牌」+ `createTileElement` 牌面（约桌面 75%）
+- 自摸/点炮/抢杠/杠上花/杠上炮均传入 `winTile`
+
+- Service Worker：`nocturne-games-v105`
+
+---
+# v0.15.13
+
+## 对家「已胡」徽标修复
+
+- 统一 `renderPlayerStatusBadges`：四家共用 已胡 / 定缺 / 庄 徽标
+- 对家不再把「已胡」塞进小号 meta 文本；去掉顶部 `max-height` + `overflow:hidden` 裁切
+- Debug「已胡徽标四家」：对家 庄+缺万+已胡 验收
+
+- Service Worker：`nocturne-games-v104`
+
+---
+# v0.15.12
+
+## 事件提示统一为 showPlayerEvent
+
+- 碰/杠/胡共用接口：`type` / `title` / `pattern` / `fan` / `score` / `blocking` / `duration`
+- 碰约 1.2s；杠类约 1.5s；AI 胡 3s；自己胡 blocking +「确认」
+- 确认已无 WinNotice / presentWinNotice 残留
+
+- Service Worker：`nocturne-games-v103`
+
+---
+# v0.15.11
+
+## 胡牌提示：仅保留座位小提示
+
+- 删除中央 `WinNotice` / `winModal` 与 `showWinNotice` / `presentWinNotice`
+- 胡牌统一走 `showPlayerEvent`：显示 胡 / 牌型 / 番数 / 得分
+- 自己胡：小提示下「确认」后继续血战；AI 胡：3 秒后自动续局
+- 一炮多响：各胡家座位各一条小提示
+
+- Service Worker：`nocturne-games-v102`
+
+---
+# v0.15.10
+
+## 出牌浮窗靠近出牌方
+
+- 新增 `showDiscardEvent`：按座位挂 `discard-event-bottom/left/top/right`
+- 四家 event-anchor 改靠玩家侧（不再贴中央计数器）
+- 分向飘移动画（自己上、对家下、左→右、右→左）；z-index 出牌 55 / 胡牌 70
+- Debug「出牌提示四家」依次演示四锚点
+
+- Service Worker：`nocturne-games-v101`
+
+---
+# v0.15.9
+
+## AI 胡牌提示：先展示再续局
+
+- 纯 AI 胡：中央提示稳定显示 3 秒，期间取消待执行摸打，牌局静止
+- 3 秒后关闭提示再 `continueAfterWin`；自己胡仍需确认
+- 一炮多响仍一次展示全部胡家
+
+- Service Worker：`nocturne-games-v100`
+
+---
+# v0.15.8
+
+## 已听牌时的换听建议
+
+- 出牌阶段同时计算当前听牌与换听建议；已听不再提前跳过建议
+- `getReadyDiscardSuggestions` 支持 `baselineWaitingTiles` / `changeOnly`
+- 听牌区：未听→可下叫；已听→听；已听且可换→听 + 可换听（最多 3 条，可点击选牌）
+- 规则测试 RS13–RS20
+
+- Service Worker：`nocturne-games-v99`
+
+---
+# v0.15.7
+
+## 多面听完整显示 + 副露区居中
+
+- `collectVisibleTilesForReady` 不再把牌墙计入「已出现」：墙中未摸出的牌不得当作绝张
+- `getReadyHandInfo` 始终返回完整 `waitingTiles`（去重 + 万→条→筒排序）；`maxWinInfo` 不裁剪等待牌
+- 正式听牌区遍历全部等待牌；允许多张换行，去掉裁切
+- 四家副露区 `justify-content:center`（横向/纵向），安全区内 shrink gap→scale，不改弃牌区
+- 规则测试 RS11/RS12：打一筒后听 w2/w5/w8
+
+- Service Worker：`nocturne-games-v98`
+
+---
+# v0.15.6
+
+## 副露来源方向标记
+
+- 新增 `getMeldSourcePosition`：按碰杠者面朝桌心换算屏幕方位
+- 修复下家（右）竖列：自己打出的牌标在最下，不再误标最上
+- Debug「来源标记」场景；规则测试 MV1c/MV1d
+
+- Service Worker：`nocturne-games-v97`
+
+---
+# v0.15.5
+
+## 胡牌提醒交互
+
+- 统一 `showWinNotice`：自己胡需点「确认」；他人/纯 AI 一炮多响 3 秒自动关闭
+- 他人提示不挡手牌与操作；新牌局/重开清除定时器与残留
+
+- Service Worker：`nocturne-games-v96`
+
+---
+# v0.15.4
+
+## 碰杠场景：四家副露极限布局
+
+- Debug「碰杠场景」改为四家各 2暗杠+2碰（共4组独立 meld，`debugPreset`）
+- 手牌每家2张，自己摸牌后3张可出；不结算预置杠分、不写杠流水
+- localhost 验收：`auditPengGangScene`
+
+- Service Worker：`nocturne-games-v95`
+
+---
+# v0.15.3
+
+## 多暗杠副露显示
+
+- 暗杠宽度改由真实牌尺寸占位（去掉 `transform:scale` 造成的组间重叠）
+- 副露区改为 flex nowrap；空间不足先缩 gap，再统一缩牌，禁止换行叠压
+- 暗杠组增加 `meld-an-gang`；牌背与明牌统一尺寸
+
+- Service Worker：`nocturne-games-v94`
+
+---
 # v0.15.2
 
 ## 可下叫建议

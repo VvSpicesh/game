@@ -373,8 +373,8 @@ function countTileType(tiles,suit,number){
 
 /**
  * 查叫：遍历 27 种候选牌，调用 canPlayerWin / getWinInfo。
- * visibleTiles：用于「已出现 4 张」判定的集合（建议：除当前玩家手牌外的
- * 全桌牌——他人手牌、所有副露、牌河、剩余牌墙）。已满 4 张不可作等待牌。
+ * visibleTiles：用于「已出现 4 张」判定（他人手牌/副露/牌河等已露面牌，不含牌墙）。
+ * 返回完整 waitingTiles 数组；maxWinInfo 仅作附加信息，不裁剪等待牌。
  */
 export function getReadyHandInfo(player,visibleTiles=[],rules=null){
   if(!player||player.won){
@@ -383,7 +383,9 @@ export function getReadyHandInfo(player,visibleTiles=[],rules=null){
   const hand=player.hand||[];
   const melds=player.melds||[];
   const waitingTiles=[];
+  const seen=new Set();
   let maxWinInfo=null;
+  const suitOrder={w:0,t:1,b:2};
 
   for(const suit of ["w","t","b"]){
     for(let number=1;number<=9;number++){
@@ -391,6 +393,9 @@ export function getReadyHandInfo(player,visibleTiles=[],rules=null){
       const trialHand=hand.concat([{s:suit,n:number,id:`ting-${suit}${number}`}]);
       const info=canPlayerWin(player,trialHand,melds,{},rules);
       if(!info.canWin)continue;
+      const key=`${suit}-${number}`;
+      if(seen.has(key))continue;
+      seen.add(key);
       waitingTiles.push({s:suit,n:number});
       if(
         !maxWinInfo ||
@@ -410,6 +415,10 @@ export function getReadyHandInfo(player,visibleTiles=[],rules=null){
     }
   }
 
+  waitingTiles.sort((a,b)=>
+    (suitOrder[a.s]-suitOrder[b.s])||(a.n-b.n)
+  );
+
   return {
     isReady:waitingTiles.length>0,
     waitingTiles,
@@ -423,6 +432,20 @@ function tileKey(tile){
 
 function compareTiles(a,b){
   return (a.s===b.s&&a.n===b.n);
+}
+
+const WAIT_SUIT_ORDER={w:0,t:1,b:2};
+
+/** 等待牌集合键：万→条→筒，同色 1→9 */
+export function waitingTilesKey(tiles){
+  return [...(tiles||[])]
+    .sort((a,b)=>(WAIT_SUIT_ORDER[a.s]-WAIT_SUIT_ORDER[b.s])||(a.n-b.n))
+    .map(tile=>`${tile.s}${tile.n}`)
+    .join(",");
+}
+
+function maxFanOf(info){
+  return info?.totalFan||0;
 }
 
 function countKnownTiles(state){
@@ -441,10 +464,18 @@ function countKnownTiles(state){
 }
 
 /**
- * 分析当前玩家「打哪张可以下叫」。
+ * 分析当前玩家「打哪张可以下叫 / 换听」。
  * 仅复用既有合法出牌与查叫逻辑，不改胡牌算法。
+ *
+ * @param {object} [options]
+ * @param {Array<{s:string,n:number}>} [options.baselineWaitingTiles]
+ *        当前听牌等待集合。传入且非空时只保留「换听」建议
+ *        （等待集合变化 / 剩余张数更高 / 最高番更优）。
+ * @param {number} [options.baselineRemainingCount]
+ * @param {number} [options.baselineMaxFan]
+ * @param {boolean} [options.changeOnly] 强制按换听过滤（即使 baseline 为空则结果为空）
  */
-export function getReadyDiscardSuggestions(player,state,rules=null){
+export function getReadyDiscardSuggestions(player,state,rules=null,options={}){
   if(!player||player.won)return [];
   const hand=player.hand||[];
   if(!hand.length)return [];
@@ -453,6 +484,19 @@ export function getReadyDiscardSuggestions(player,state,rules=null){
   if(!legalIndexes.length)return [];
 
   const knownTiles=countKnownTiles(state);
+  const baselineTiles=options.baselineWaitingTiles||[];
+  const changeOnly=Boolean(options.changeOnly)||baselineTiles.length>0;
+  const baselineKey=waitingTilesKey(baselineTiles);
+  const hasBaselineRemaining=Number.isFinite(options.baselineRemainingCount);
+  const baselineRemaining=hasBaselineRemaining
+    ?options.baselineRemainingCount
+    :baselineTiles.reduce((sum,tile)=>{
+      const remaining=4-countTileType(knownTiles,tile.s,tile.n);
+      return sum+(remaining>0?remaining:0);
+    },0);
+  const hasBaselineFan=Number.isFinite(options.baselineMaxFan);
+  const baselineMaxFan=hasBaselineFan?options.baselineMaxFan:0;
+
   const seenDiscardTypes=new Set();
   const suggestions=[];
 
@@ -466,12 +510,14 @@ export function getReadyDiscardSuggestions(player,state,rules=null){
 
     const trialHand=hand.filter((_,index)=>index!==discardIndex);
     const trialPlayer={...player,hand:trialHand};
-    const readyInfo=getReadyHandInfo(trialPlayer,knownTiles,rules);
+    // 假想打出后：该牌不再算「手中已知」，计入剩余时按已打出处理
+    const knownAfterDiscard=knownTiles.filter(tile=>tile!==discardTile);
+    const readyInfo=getReadyHandInfo(trialPlayer,knownAfterDiscard,rules);
     if(!readyInfo.isReady)return;
 
     const waitingTileCounts=(readyInfo.waitingTiles||[])
       .map(tile=>{
-        const remaining=4-countTileType(knownTiles,tile.s,tile.n);
+        const remaining=4-countTileType(knownAfterDiscard,tile.s,tile.n);
         return {tile,remaining};
       })
       .filter(item=>item.remaining>0);
@@ -480,13 +526,23 @@ export function getReadyDiscardSuggestions(player,state,rules=null){
 
     const remainingCount=waitingTileCounts.reduce((sum,item)=>sum+item.remaining,0);
     const waitingTiles=waitingTileCounts.map(item=>item.tile);
+    const maxWinInfo=readyInfo.maxWinInfo||null;
+
+    if(changeOnly){
+      const newKey=waitingTilesKey(waitingTiles);
+      const betterRemaining=remainingCount>baselineRemaining;
+      const betterFan=hasBaselineFan&&maxFanOf(maxWinInfo)>baselineMaxFan;
+      if(newKey===baselineKey&&!betterRemaining&&!betterFan)return;
+    }
+
     suggestions.push({
       discardIndex,
       discardTile,
       waitingTiles,
       waitingTileCounts,
       remainingCount,
-      maxWinInfo:readyInfo.maxWinInfo||null,
+      totalRemaining:remainingCount,
+      maxWinInfo,
       _sortOrder:orderIndex
     });
   });
@@ -494,7 +550,7 @@ export function getReadyDiscardSuggestions(player,state,rules=null){
   const deduped=[];
   const seenSuggestions=new Set();
   suggestions.forEach(item=>{
-    const maxFan=item.maxWinInfo?.totalFan||0;
+    const maxFan=maxFanOf(item.maxWinInfo);
     const key=[
       tileKey(item.discardTile),
       item.waitingTileCounts.map(entry=>`${tileKey(entry.tile)}x${entry.remaining}`).join(","),
@@ -509,7 +565,7 @@ export function getReadyDiscardSuggestions(player,state,rules=null){
   deduped.sort((a,b)=>
     (b.remainingCount-a.remainingCount) ||
     (b.waitingTiles.length-a.waitingTiles.length) ||
-    ((b.maxWinInfo?.totalFan||0)-(a.maxWinInfo?.totalFan||0)) ||
+    (maxFanOf(b.maxWinInfo)-maxFanOf(a.maxWinInfo)) ||
     (a._sortOrder-b._sortOrder)
   );
 

@@ -6,7 +6,7 @@
  */
 
 import {emptyRoundSettlement,isFlowerPig,SUIT_LABEL} from "./rules-guard.js";
-import {fanMultiplier,getReadyHandInfo} from "./hu.js?v=0.15.2";
+import {fanMultiplier,getReadyHandInfo} from "./hu.js?v=0.15.8";
 
 export const START_SCORE=20000;
 
@@ -382,8 +382,9 @@ export function settleFlowerPigs(state){
 }
 
 /**
- * 除当前玩家手牌外的全桌牌（他人手牌、所有副露、牌河、牌墙）。
- * 用于查叫「已出现 4 张」判定。
+ * 除当前玩家手牌外的已出现牌（他人手牌、所有副露、牌河）。
+ * 用于查叫「已出现 4 张 / 绝张」判定。
+ * 不含牌墙：墙中未摸出的牌仍可能摸到，不得当作已绝张。
  */
 export function collectVisibleTilesForReady(state,playerIndex){
   const tiles=[];
@@ -398,7 +399,6 @@ export function collectVisibleTilesForReady(state,playerIndex){
   (state.discards||[]).forEach(item=>{
     if(item?.tile)tiles.push(item.tile);
   });
-  (state.wall||[]).forEach(t=>tiles.push(t));
   return tiles;
 }
 

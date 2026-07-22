@@ -17,7 +17,7 @@ export const SEAT_LAYOUT={
     meldGridFlow:"row",
     meldAlignContent:"end",
     meldJustifyContent:"center",
-    meldAlignItems:"center",
+    meldAlignItems:"flex-end",
     tileRotate:"0deg",
     metrics:"horizontal",
     discardSlotSwap:false
@@ -35,7 +35,7 @@ export const SEAT_LAYOUT={
     meldGridFlow:"row",
     meldAlignContent:"start",
     meldJustifyContent:"center",
-    meldAlignItems:"center",
+    meldAlignItems:"flex-end",
     tileRotate:"180deg",
     metrics:"horizontal",
     discardSlotSwap:false
@@ -52,8 +52,8 @@ export const SEAT_LAYOUT={
     discardJustifyContent:"flex-start",
     meldGridFlow:"column",
     meldAlignContent:"start",
-    meldJustifyContent:"start",
-    meldAlignItems:"start",
+    meldJustifyContent:"center",
+    meldAlignItems:"center",
     tileRotate:"90deg",
     metrics:"vertical",
     discardSlotSwap:true
@@ -69,9 +69,9 @@ export const SEAT_LAYOUT={
     discardAlignContent:"flex-start",
     discardJustifyContent:"flex-start",
     meldGridFlow:"column",
-    meldAlignContent:"end",
-    meldJustifyContent:"end",
-    meldAlignItems:"end",
+    meldAlignContent:"center",
+    meldJustifyContent:"center",
+    meldAlignItems:"center",
     tileRotate:"-90deg",
     metrics:"vertical",
     discardSlotSwap:true
@@ -200,20 +200,30 @@ function applyMeldZoneCapacity(localEl,config){
 
   zone.style.removeProperty("--meld-grid-columns");
   zone.style.removeProperty("--meld-grid-rows");
+  zone.style.removeProperty("--meld-zone-tile-scale");
 
-  const zoneRect=zone.getBoundingClientRect();
+  const isVertical=config.metrics==="vertical";
+  const defaultGap=6;
+  const minGap=2;
+  zone.style.setProperty("--meld-flex-direction",isVertical?"column":"row");
+  zone.style.setProperty("--meld-group-gap",`${defaultGap}px`);
+  zone.style.setProperty("--meld-align-content",config.meldAlignContent||"start");
+  zone.style.setProperty("--meld-justify-content",config.meldJustifyContent||"center");
+  zone.style.setProperty("--meld-align-items",config.meldAlignItems||"flex-end");
+
   const localRect=localEl.getBoundingClientRect();
   const discardRect=localEl.querySelector(".discard-zone")?.getBoundingClientRect();
   const eventRect=localEl.querySelector(".event-anchor")?.getBoundingClientRect();
+  const seatGap=readPx(getComputedStyle(localEl).gap);
+
+  // 先按未缩放尺寸测量，再决定 gap / 统一缩牌
+  void zone.offsetWidth;
   const groupSizes=groups.map(measureOuterSize);
   const maxGroup=groupSizes.reduce((acc,size)=>({
     width:Math.max(acc.width,size.width),
     height:Math.max(acc.height,size.height)
   }),{width:0,height:0});
-  const gapX=readPx(getComputedStyle(zone).columnGap||getComputedStyle(zone).gap);
-  const gapY=readPx(getComputedStyle(zone).rowGap||getComputedStyle(zone).gap);
-  const isVertical=config.metrics==="vertical";
-  const seatGap=readPx(getComputedStyle(localEl).gap);
+
   const usableCross=isVertical
     ?Math.max(
       maxGroup.width,
@@ -223,16 +233,26 @@ function applyMeldZoneCapacity(localEl,config){
       maxGroup.height,
       localRect.height-(discardRect?.height||0)-(eventRect?.height||0)-seatGap*2
     );
-  const usableMain=isVertical?localRect.height:localRect.width;
-  const groupMain=isVertical?maxGroup.height:maxGroup.width;
-  const gapMain=isVertical?gapY:gapX;
-  const perTrack=Math.max(1,Math.floor((usableMain+gapMain)/(groupMain+gapMain)));
+  const usableMain=Math.max(1,isVertical?localRect.height:localRect.width);
+  const mains=groupSizes.map(size=>isVertical?size.height:size.width);
+  const groupsMain=mains.reduce((sum,v)=>sum+v,0);
+  const n=groups.length;
 
-  zone.style.setProperty("--meld-grid-flow",config.meldGridFlow||"row");
-  zone.style.setProperty("--meld-align-content",config.meldAlignContent||"start");
-  zone.style.setProperty("--meld-justify-content",config.meldJustifyContent||"center");
-  zone.style.setProperty("--meld-align-items",config.meldAlignItems||"center");
-  zone.style.setProperty("--meld-group-gap",`${Math.max(gapX,gapY,8)}px`);
+  let gap=defaultGap;
+  let needed=groupsMain+gap*Math.max(0,n-1);
+  if(n>1&&needed>usableMain){
+    const roomForGaps=usableMain-groupsMain;
+    if(roomForGaps>=minGap*(n-1)){
+      gap=Math.max(minGap,roomForGaps/Math.max(1,n-1));
+    }else{
+      gap=minGap;
+      const budget=Math.max(1,usableMain-gap*(n-1));
+      const scale=Math.max(0.55,Math.min(1,budget/Math.max(1,groupsMain)));
+      zone.style.setProperty("--meld-zone-tile-scale",String(Number(scale.toFixed(4))));
+    }
+  }
+  zone.style.setProperty("--meld-group-gap",`${Math.round(gap*10)/10}px`);
+
   if(isVertical){
     zone.style.width="auto";
     zone.style.height="100%";
@@ -244,14 +264,6 @@ function applyMeldZoneCapacity(localEl,config){
     zone.style.maxHeight=`${Math.round(usableCross)}px`;
     zone.style.maxWidth="100%";
   }
-
-  if(isVertical){
-    zone.style.setProperty("--meld-grid-rows",`repeat(${perTrack}, max-content)`);
-    zone.style.setProperty("--meld-grid-columns","none");
-  }else{
-    zone.style.setProperty("--meld-grid-columns",`repeat(${perTrack}, max-content)`);
-    zone.style.setProperty("--meld-grid-rows","none");
-  }
 }
 
 function applyConfigToSeatLocal(el,side,config,pos){
@@ -260,10 +272,10 @@ function applyConfigToSeatLocal(el,side,config,pos){
 
   el.style.setProperty("--seat-flex-direction",config.flexDirection);
   el.style.setProperty("--seat-align-items","center");
-  el.style.setProperty("--meld-grid-flow",config.meldGridFlow||"row");
+  el.style.setProperty("--meld-flex-direction",config.metrics==="vertical"?"column":"row");
   el.style.setProperty("--meld-align-content",config.meldAlignContent||"start");
   el.style.setProperty("--meld-justify-content",config.meldJustifyContent||"center");
-  el.style.setProperty("--meld-align-items",config.meldAlignItems||"center");
+  el.style.setProperty("--meld-align-items",config.meldAlignItems||"flex-end");
   el.style.setProperty("--discard-flex-direction",config.discardFlexDirection);
   el.style.setProperty("--discard-flex-wrap",config.discardFlexWrap);
   el.style.setProperty("--discard-align-content",config.discardAlignContent);

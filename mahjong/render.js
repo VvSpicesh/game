@@ -1,14 +1,14 @@
 import {tileFace,tileName,tileDisplayName} from "./tiles.js?v=0.14.49";
 import {getLegalDiscardIndexes,SUIT_LABEL,hasMissingSuit} from "./rules-guard.js";
-import {getReadyHandInfo,getReadyDiscardSuggestions} from "./hu.js?v=0.15.2";
-import {collectVisibleTilesForReady} from "./score.js?v=0.15.2";
-import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.14.64";
+import {getReadyHandInfo,getReadyDiscardSuggestions} from "./hu.js?v=0.15.8";
+import {collectVisibleTilesForReady} from "./score.js?v=0.15.8";
+import {buildSelfHandDisplayOrder,buildMeldTilePlan} from "./meld-view.js?v=0.15.6";
 import {
   RELATIVE_SEAT_LABELS,
   getPlayerDisplayName,
   isValidPlayerName
 } from "./player-name.js?v=0.14.46";
-import {applySeatLayoutToTable,sideForPlayerIndex} from "./seat-layout.js?v=0.14.62";
+import {applySeatLayoutToTable,sideForPlayerIndex} from "./seat-layout.js?v=0.15.7";
 
 const SEAT_LABELS=RELATIVE_SEAT_LABELS;
 const SEAT_SIDE=["bottom","left","top","right"];
@@ -38,6 +38,21 @@ function missingSuitBadgeHtml(player){
   return `<span class="missing-suit-badge" aria-label="定缺${label}">缺${label}</span>`;
 }
 
+/**
+ * 四家统一状态徽标：已胡 > 定缺 > 庄（空间不足时 已胡 优先保留）。
+ */
+function renderPlayerStatusBadges(player,isDealer){
+  const badges=[];
+  if(player?.won){
+    badges.push('<span class="seat-status-badge seat-status-won">已胡</span>');
+  }
+  badges.push(missingSuitBadgeHtml(player));
+  if(isDealer){
+    badges.push('<span class="seat-status-badge dealer-badge">庄</span>');
+  }
+  return `<div class="seat-status-badges">${badges.join("")}</div>`;
+}
+
 function seatMetaHtml(player,showMelds){
   const parts=[`${player.hand.length}张`];
   if(showMelds&&player.melds.length)parts.push(`碰/杠×${player.melds.length}`);
@@ -60,7 +75,21 @@ function renderReadyTileList(container,tiles,className="tile-small"){
   });
 }
 
-function renderReadySuggestion(container,suggestion){
+function appendReadySection(container,title,className){
+  const section=document.createElement("div");
+  section.className=`ready-hint-section ${className||""}`.trim();
+  const sectionLabel=document.createElement("div");
+  sectionLabel.className="ready-hint-section-label";
+  sectionLabel.textContent=title;
+  section.appendChild(sectionLabel);
+  const body=document.createElement("div");
+  body.className="ready-hint-section-body";
+  section.appendChild(body);
+  container.appendChild(section);
+  return body;
+}
+
+function renderReadySuggestion(container,suggestion,onSelectDiscard){
   const row=document.createElement("div");
   row.className="ready-hint-suggestion";
 
@@ -86,7 +115,7 @@ function renderReadySuggestion(container,suggestion){
 
   const waitsBlock=document.createElement("div");
   waitsBlock.className="ready-hint-waits";
-  suggestion.waitingTileCounts.forEach(({tile,remaining})=>{
+  (suggestion.waitingTileCounts||[]).forEach(({tile,remaining})=>{
     const waitItem=document.createElement("div");
     waitItem.className="ready-hint-wait-item";
     waitItem.title=`${tileName(tile)} × ${remaining}`;
@@ -109,6 +138,12 @@ function renderReadySuggestion(container,suggestion){
   total.textContent=`共${suggestion.remainingCount}张`;
   row.appendChild(total);
 
+  if(typeof onSelectDiscard==="function"&&Number.isInteger(suggestion.discardIndex)){
+    row.classList.add("is-clickable");
+    row.title=`选中${tileName(suggestion.discardTile)}（需再点一次出牌）`;
+    row.addEventListener("click",()=>onSelectDiscard(suggestion.discardIndex));
+  }
+
   container.appendChild(row);
 }
 
@@ -124,7 +159,13 @@ function handForWaitingTiles(player,drawnTileId){
   return hand;
 }
 
-function renderWaitingTiles(state){
+/**
+ * 听牌区：
+ * A 未听 → 可下叫建议
+ * B 已听且无换听 → 仅当前等待牌
+ * C 已听且有换听 → 当前听 + 可换听（最多 3 条）
+ */
+function renderWaitingTiles(state,handlers={}){
   const root=document.getElementById("readyHintInline");
   const label=document.getElementById("readyHintLabel");
   const grid=document.getElementById("readyHintTiles");
@@ -132,6 +173,7 @@ function renderWaitingTiles(state){
 
   grid.innerHTML="";
   root.hidden=true;
+  root.classList.remove("is-suggestions","is-ready","is-ready-change");
 
   const player=state.players?.[0];
   if(!player||player.won||!WAITING_TILE_PHASES.has(state.phase))return;
@@ -141,28 +183,51 @@ function renderWaitingTiles(state){
     hand:handForWaitingTiles(player,state.drawnTileId)
   };
   const visible=collectVisibleTilesForReady(state,0);
-  const ready=getReadyHandInfo(trialPlayer,visible,state.activeRules);
-  const waiting=sortWaitingTiles(ready.waitingTiles||[]);
-  if(waiting.length){
+  const currentReady=getReadyHandInfo(trialPlayer,visible,state.activeRules);
+  const waiting=sortWaitingTiles(currentReady.waitingTiles||[]);
+  const isReady=waiting.length>0;
+  const canSuggest=state.turn===0&&state.phase==="出牌";
+  const onSelectDiscard=typeof handlers.onTileClick==="function"
+    ?(index)=>handlers.onTileClick(index)
+    :null;
+
+  let suggestions=[];
+  if(canSuggest){
+    suggestions=isReady
+      ?getReadyDiscardSuggestions(player,state,state.activeRules,{
+        baselineWaitingTiles:waiting,
+        baselineMaxFan:currentReady.maxWinInfo?.totalFan||0,
+        changeOnly:true
+      }).slice(0,READY_SUGGESTION_LIMIT)
+      :getReadyDiscardSuggestions(player,state,state.activeRules)
+        .slice(0,READY_SUGGESTION_LIMIT);
+  }
+
+  if(isReady&&suggestions.length){
     label.textContent="听";
     root.hidden=false;
-    root.classList.remove("is-suggestions");
+    root.classList.add("is-ready","is-ready-change");
+    const currentBody=appendReadySection(grid,"听","ready-hint-current");
+    renderReadyTileList(currentBody,waiting,"tile-small");
+    const changeBody=appendReadySection(grid,"可换听","ready-hint-change");
+    suggestions.forEach(item=>renderReadySuggestion(changeBody,item,onSelectDiscard));
+    return;
+  }
+
+  if(isReady){
+    label.textContent="听";
+    root.hidden=false;
     root.classList.add("is-ready");
     renderReadyTileList(grid,waiting,"tile-small");
     return;
   }
 
-  if(state.turn!==0||state.phase!=="出牌")return;
-
-  const suggestions=getReadyDiscardSuggestions(player,state,state.activeRules)
-    .slice(0,READY_SUGGESTION_LIMIT);
-  if(!suggestions.length)return;
-
-  label.textContent="可下叫";
-  root.hidden=false;
-  root.classList.remove("is-ready");
-  root.classList.add("is-suggestions");
-  suggestions.forEach(item=>renderReadySuggestion(grid,item));
+  if(suggestions.length){
+    label.textContent="可下叫";
+    root.hidden=false;
+    root.classList.add("is-suggestions");
+    suggestions.forEach(item=>renderReadySuggestion(grid,item,onSelectDiscard));
+  }
 }
 
 function wait(ms){
@@ -199,6 +264,24 @@ function renderEventPopupTile(tile){
   return wrap;
 }
 
+/** 胡牌提示专用牌面（约桌面牌 75%，复用 createTileElement / tileFace） */
+function renderHuEventTile(tile){
+  const row=document.createElement("div");
+  row.className="player-event-hu-tile-row";
+
+  const label=document.createElement("div");
+  label.className="player-event-hu-tile-label";
+  label.textContent="胡牌";
+
+  const wrap=document.createElement("div");
+  wrap.className="player-event-hu-tile";
+  wrap.setAttribute("aria-label",tileName(tile));
+  wrap.appendChild(createTileElement(tile,"tile-event-hu"));
+  row.appendChild(label);
+  row.appendChild(wrap);
+  return row;
+}
+
 export function renderGame(state,handlers){
   document.getElementById("remaining").textContent=state.wall.length;
   document.getElementById("phase").textContent=state.phase;
@@ -224,7 +307,7 @@ export function renderGame(state,handlers){
   // 容量/边界依赖副露真实矩形，必须在 meld + seat-layout 之后再算
   applyAllDiscardLayouts();
   renderActions(state);
-  renderWaitingTiles(state);
+  renderWaitingTiles(state,handlers);
   renderScores(state);
 }
 
@@ -262,11 +345,10 @@ function renderSeat(state,player,index,handlers){
   const isDealer=Number.isInteger(state.dealer)&&state.dealer===index;
   const isSide=index===1||index===3;
   const avatar=index===0?"🙂":"🤖";
+  const badgesHtml=renderPlayerStatusBadges(player,isDealer);
   const header=document.createElement("div");
   header.className="seat-header"+(isSide?" seat-header-side":"");
-  const statusClass=player.won?"seat-status seat-status-won":"seat-status seat-status-play";
-  const statusText=player.won?"已胡":"进行中";
-  const dealerBadge=isDealer?'<span class="dealer-badge">庄</span>':"";
+
   if(index===2){
     const namePart=player.name?` ${player.name}`:"";
     header.className="seat-header seat-header-top";
@@ -275,26 +357,25 @@ function renderSeat(state,player,index,handlers){
         <span class="seat-avatar" aria-hidden="true">${avatar}</span>
         <div class="seat-text">
           <div class="seat-name-row seat-name-row-top">
-            <div class="seat-name">${SEAT_LABELS[index]}${namePart}${dealerBadge}</div>
-            ${missingSuitBadgeHtml(player)}
+            <div class="seat-name">${SEAT_LABELS[index]}${namePart}</div>
+            ${badgesHtml}
           </div>
-          <div class="seat-meta-top">${seatMetaHtml(player,true)} · ${statusText}</div>
+          <div class="seat-meta seat-meta-top">${seatMetaHtml(player,true)}</div>
         </div>
       </div>
     `;
   }else if(isSide){
     const nameLine=player.name
-      ?`<div class="seat-name">${player.name}${dealerBadge}</div>`
-      :(dealerBadge?`<div class="seat-name">${dealerBadge}</div>`:"");
+      ?`<div class="seat-name">${player.name}</div>`
+      :"";
     header.innerHTML=`
       <div class="seat-id">
         <span class="seat-avatar" aria-hidden="true">${avatar}</span>
         <div class="seat-text">
           <div class="seat-label">${SEAT_LABELS[index]}</div>
           ${nameLine}
-          <div class="seat-missing-suit">${missingSuitBadgeHtml(player)}</div>
+          ${badgesHtml}
           <div class="seat-meta">${seatMetaHtml(player,false)}</div>
-          <div class="${statusClass}">${statusText}</div>
         </div>
       </div>
     `;
@@ -305,13 +386,12 @@ function renderSeat(state,player,index,handlers){
         <span class="seat-avatar" aria-hidden="true">${avatar}</span>
         <div class="seat-text">
           <div class="seat-name-row">
-            <div class="seat-name">${SEAT_LABELS[index]}${namePart}${dealerBadge}</div>
-            ${missingSuitBadgeHtml(player)}
+            <div class="seat-name">${SEAT_LABELS[index]}${namePart}</div>
+            ${badgesHtml}
           </div>
           <div class="seat-meta">${seatMetaHtml(player,true)}</div>
         </div>
       </div>
-      <div class="${statusClass}">${statusText}</div>
     `;
   }
   seat.appendChild(header);
@@ -406,7 +486,8 @@ function renderMeldTile(item){
 export function renderMeld(meld,ownerSeat){
   const plan=buildMeldTilePlan(meld,ownerSeat);
   const group=document.createElement("div");
-  group.className=`meld-group meld-type-${plan.type||"unknown"}`;
+  const typeClass=plan.type==="anGang"?"meld-type-anGang meld-an-gang":`meld-type-${plan.type||"unknown"}`;
+  group.className=`meld-group ${typeClass}`;
   if(plan.sourcePosition)group.classList.add(`meld-source-${plan.sourcePosition}`);
   group.style.setProperty("--meld-width-scale",String(plan.widthScale??1));
 
@@ -810,8 +891,6 @@ function dismissPlayerEvent(playerIndex){
 function buildPlayerEventCopy({
   action,
   playerIndex,
-  sourcePlayerIndex=null,
-  sourcePengFrom=null,
   tile=null,
   players=[],
   viewerIndex=0
@@ -820,47 +899,78 @@ function buildPlayerEventCopy({
   const tileLabel=tile?tileDisplayName(tile):"";
   switch(action){
     case "discard":
-      return{name:actor,actionWord:"打出",tileLabel,detail:null,tone:"discard",layout:"stack"};
-    case "peng":
-      return{name:actor,actionWord:"碰",tileLabel,detail:null,tone:"claim",layout:"stack"};
-    case "mingGang":
-      return{name:actor,actionWord:"直杠",tileLabel,detail:null,tone:"claim",layout:"stack"};
-    case "anGang":
-      return{name:actor,actionWord:"暗杠",tileLabel,detail:null,tone:"claim",layout:"stack"};
-    case "buGang":
-      return{name:actor,actionWord:"补杠",tileLabel,detail:null,tone:"claim",layout:"stack"};
-    case "hu":
-      return{name:actor,actionWord:"胡",tileLabel,detail:null,tone:"hu",layout:"stack"};
+      return{name:actor,actionWord:"打出",tileLabel,detail:null,tone:"discard"};
     default:
-      return{name:actor,actionWord:String(action||""),tileLabel,detail:null,tone:"claim",layout:"stack"};
+      return{name:actor,actionWord:String(action||""),tileLabel,detail:null,tone:"claim"};
   }
 }
 
+const DISCARD_EVENT_SIDE_CLASS={
+  0:"discard-event-bottom",
+  1:"discard-event-left",
+  2:"discard-event-top",
+  3:"discard-event-right"
+};
+
+/** 碰/杠/胡默认标题与时长（出牌仍走 showDiscardEvent） */
+const PLAYER_EVENT_DEFAULTS={
+  peng:{title:"碰",duration:1200,tone:"claim"},
+  mingGang:{title:"杠",duration:1500,tone:"claim"},
+  anGang:{title:"暗杠",duration:1500,tone:"claim"},
+  buGang:{title:"补杠",duration:1500,tone:"claim"},
+  hu:{title:"胡",duration:3000,tone:"hu"},
+  discard:{title:"打出",duration:1400,tone:"discard"}
+};
+
 /**
- * 座位锚定的事件提示（按座位独立计时；弃牌可升级为碰/杠/胡）。
+ * 出牌浮窗：按座位靠近出牌方，不共用中央锚点语义。
+ */
+export function showDiscardEvent(options={}){
+  const playerIndex=Number(options.playerIndex);
+  if(!Number.isInteger(playerIndex)||playerIndex<0||playerIndex>3)return;
+  showPlayerEvent({
+    ...options,
+    playerIndex,
+    type:"discard",
+    showSelfDiscard:options.showSelfDiscard!==false,
+    duration:Math.max(400,Number(options.duration)||1400),
+    discardSideClass:DISCARD_EVENT_SIDE_CLASS[playerIndex]||"discard-event-bottom"
+  });
+}
+
+/**
+ * 统一座位事件提示（碰 / 杠 / 胡 / 出牌）。
+ * 胡牌不再使用中央 WinNotice。
+ *
  * @param {object} options
- * @param {number} options.playerIndex 事件主角（出牌者 / 碰杠者 / 胡者）
- * @param {"discard"|"peng"|"mingGang"|"anGang"|"buGang"|"hu"} options.action
- * @param {object|null} [options.tile]
- * @param {number|null} [options.sourcePlayerIndex] 碰/直杠/胡的出牌来源
- * @param {number|null} [options.sourceEventId] 关联的弃牌 eventId
- * @param {string} [options.huSourceWord] 胡牌来源文案（放炮 / 被抢杠 / 杠上炮）
- * @param {number|null} [options.sourcePengFrom] 补杠原碰来源
- * @param {number|null} [options.eventId] 弃牌事件 id
- * @param {Array} [options.players]
- * @param {number} [options.viewerIndex=0]
+ * @param {number} options.playerIndex
+ * @param {"discard"|"peng"|"mingGang"|"anGang"|"buGang"|"hu"} [options.type]
+ * @param {"discard"|"peng"|"mingGang"|"anGang"|"buGang"|"hu"} [options.action] 兼容旧字段
+ * @param {string} [options.title] 主标题（碰 / 杠 / 胡 / 自摸…）
+ * @param {string} [options.pattern] 胡牌牌型
+ * @param {number|null} [options.fan]
+ * @param {string} [options.score]
+ * @param {string} [options.scoreText] 兼容旧字段
+ * @param {boolean} [options.blocking] 自己胡：不自动消失 + 确认
+ * @param {boolean} [options.requireConfirm] 兼容旧字段
+ * @param {(()=>void)|null} [options.onConfirm]
  * @param {number} [options.duration]
- * @param {string} [options.scoreText]
+ * @param {object|null} [options.tile]
+ * @param {number|null} [options.sourceEventId]
+ * @param {number|null} [options.eventId]
+ * @param {Array} [options.players]
  * @param {boolean} [options.showSelfDiscard=false]
+ * @param {string} [options.discardSideClass]
  */
 export function showPlayerEvent(options={}){
   const playerIndex=Number(options.playerIndex);
-  const action=options.action||"discard";
+  const type=options.type||options.action||"discard";
   if(!Number.isInteger(playerIndex)||playerIndex<0||playerIndex>3)return;
 
-  if(action==="discard"&&playerIndex===0&&!options.showSelfDiscard)return;
+  if(type==="discard"&&playerIndex===0&&!options.showSelfDiscard)return;
 
-  const priority=EVENT_PRIORITY[action]||1;
+  const defaults=PLAYER_EVENT_DEFAULTS[type]||PLAYER_EVENT_DEFAULTS.peng;
+  const priority=EVENT_PRIORITY[type]||1;
   const existing=activePlayerEvents.get(playerIndex);
   if(existing&&priority<existing.priority)return;
 
@@ -869,139 +979,138 @@ export function showPlayerEvent(options={}){
 
   const players=options.players||[];
   const viewerIndex=Number.isInteger(options.viewerIndex)?options.viewerIndex:0;
-  const sourcePlayerIndex=options.sourcePlayerIndex??null;
   const sourceEventId=options.sourceEventId??null;
   const eventId=options.eventId??null;
-  const huSourceWord=options.huSourceWord??"放炮";
-  const defaultDuration=
-    action==="discard"
-      ?1200
-      :action==="peng"||action==="mingGang"||action==="buGang"||action==="anGang"
-        ?1600
-        :1800;
-  const duration=Math.max(400,Number(options.duration)||defaultDuration);
-  const copy=buildPlayerEventCopy({
-    action,
-    playerIndex,
-    sourcePlayerIndex:options.sourcePlayerIndex??null,
-    sourcePengFrom:options.sourcePengFrom??null,
-    tile:options.tile||null,
-    players,
-    viewerIndex
-  });
+  const title=String(options.title??defaults.title??"").trim()||defaults.title;
+  const pattern=String(options.pattern??options.patternName??"").trim();
+  const fan=options.fan;
+  const score=String(options.score??options.scoreText??"").trim();
+  const blocking=Boolean(options.blocking??options.requireConfirm)&&type==="hu";
+  const onConfirm=typeof options.onConfirm==="function"?options.onConfirm:null;
+  const duration=Math.max(400,Number(options.duration)||defaults.duration);
+  const tone=defaults.tone||"claim";
 
   const anchor=document.getElementById(`event-anchor-${playerIndex}`);
   if(!anchor)return;
 
-  function renderInto(el){
+  const discardSideClass=
+    type==="discard"
+      ?(options.discardSideClass||DISCARD_EVENT_SIDE_CLASS[playerIndex]||"")
+      :"";
+
+  function renderClaimStack(el){
     el.innerHTML="";
-    el.className=`player-event-toast player-event-${copy.tone}`;
+    el.className=[
+      "player-event-toast",
+      `player-event-${tone}`,
+      blocking?"is-confirming":""
+    ].filter(Boolean).join(" ");
     el.setAttribute("role","status");
     el.setAttribute("aria-live","polite");
-    el.dataset.action=String(action);
+    el.dataset.action=String(type);
     el.dataset.eventId=eventId!=null?String(eventId):"";
     el.dataset.sourceEventId=sourceEventId!=null?String(sourceEventId):"";
 
-    const canMergeSource=
-      action!=="discard"&&
-      sourcePlayerIndex!=null&&
-      copy.tileLabel&&
-      (action==="peng"||action==="mingGang"||action==="anGang"||action==="buGang"||action==="hu");
+    const content=document.createElement("div");
+    content.className=type==="hu"
+      ?"player-event-content player-event-content-hu"
+      :"player-event-content";
 
-    if(canMergeSource){
-      const sourceName=getPlayerDisplayName(sourcePlayerIndex,viewerIndex,players);
-      const tileLabel=copy.tileLabel;
-      const sourceLine=
-        action==="hu"
-          ?`${sourceName}${huSourceWord} · ${tileLabel}`
-          :`${sourceName}打出的 ${tileLabel}`;
+    const main=document.createElement("div");
+    main.className="player-event-main player-event-stack";
 
-      const main=document.createElement("div");
-      main.className="player-event-main player-event-main-merged";
+    const titleEl=document.createElement("div");
+    titleEl.className="player-event-action";
+    titleEl.textContent=title;
+    main.appendChild(titleEl);
 
-      const headerRow=document.createElement("div");
-      headerRow.className="player-event-merged-header-row";
-
-      const headerLeft=document.createElement("div");
-      headerLeft.className="player-event-merged-header-left";
-
-      const nameSpan=document.createElement("span");
-      nameSpan.className="player-event-name";
-      nameSpan.textContent=copy.name;
-      headerLeft.appendChild(nameSpan);
-
-      const actionSpan=document.createElement("span");
-      actionSpan.className="player-event-action";
-      actionSpan.textContent=
-        action==="hu"&&huSourceWord==="被抢杠"
-          ?"抢杠胡"
-          :copy.actionWord;
-      headerLeft.appendChild(actionSpan);
-
-      headerRow.appendChild(headerLeft);
-
-      if(options.tile){
-        headerRow.appendChild(renderEventPopupTile(options.tile));
-      }
-
-      main.appendChild(headerRow);
-
-      const sourceLineEl=document.createElement("div");
-      sourceLineEl.className="player-event-source-line";
-      sourceLineEl.textContent=sourceLine;
-      main.appendChild(sourceLineEl);
-
-      el.appendChild(main);
-    }else{
-      // 出牌等：名字 / 动作 / 牌名 / 牌面 同一横排
-      const main=document.createElement("div");
-      main.className="player-event-main player-event-main-inline";
-
-      const nameEl=document.createElement("span");
-      nameEl.className="player-event-name";
-      nameEl.textContent=copy.name;
-      main.appendChild(nameEl);
-
-      const actionEl=document.createElement("span");
-      actionEl.className="player-event-action";
-      actionEl.textContent=copy.actionWord;
-      main.appendChild(actionEl);
-
-      if(
-        copy.tileLabel&&
-        (action==="discard"||
-          action==="peng"||
-          action==="mingGang"||
-          action==="anGang"||
-          action==="buGang"||
-          action==="hu")
-      ){
-        const tileNameEl=document.createElement("span");
-        tileNameEl.className="player-event-tile-name";
-        tileNameEl.textContent=copy.tileLabel;
-        main.appendChild(tileNameEl);
-      }
-
-      if(options.tile){
-        main.appendChild(renderEventPopupTile(options.tile));
-      }
-
-      el.appendChild(main);
-
-      if(copy.detail){
-        const detail=document.createElement("div");
-        detail.className="player-event-detail";
-        detail.textContent=copy.detail;
-        el.appendChild(detail);
-      }
+    if(pattern){
+      const patternEl=document.createElement("div");
+      patternEl.className="player-event-pattern";
+      patternEl.textContent=pattern;
+      main.appendChild(patternEl);
     }
 
-    if(options.scoreText){
-      const score=document.createElement("div");
-      score.className="player-event-score";
-      score.textContent=options.scoreText;
-      el.appendChild(score);
+    if(fan!=null&&Number.isFinite(Number(fan))){
+      const fanEl=document.createElement("div");
+      fanEl.className="player-event-fan";
+      fanEl.textContent=`${Number(fan)}番`;
+      main.appendChild(fanEl);
     }
+
+    if(score){
+      const scoreEl=document.createElement("div");
+      scoreEl.className="player-event-score";
+      scoreEl.textContent=score;
+      main.appendChild(scoreEl);
+    }
+
+    content.appendChild(main);
+
+    if(type==="hu"&&options.tile){
+      content.appendChild(renderHuEventTile(options.tile));
+    }
+
+    el.appendChild(content);
+
+    if(blocking){
+      const btn=document.createElement("button");
+      btn.type="button";
+      btn.className="btn btn-primary player-event-confirm";
+      btn.textContent="确认";
+      btn.addEventListener("click",e=>{
+        e.preventDefault();
+        e.stopPropagation();
+        dismissPlayerEvent(playerIndex);
+        onConfirm?.();
+      });
+      el.appendChild(btn);
+    }
+  }
+
+  function renderDiscard(el){
+    const copy=buildPlayerEventCopy({
+      action:"discard",
+      playerIndex,
+      tile:options.tile||null,
+      players,
+      viewerIndex
+    });
+    el.innerHTML="";
+    el.className=[
+      "player-event-toast",
+      "player-event-discard",
+      discardSideClass
+    ].filter(Boolean).join(" ");
+    el.setAttribute("role","status");
+    el.setAttribute("aria-live","polite");
+    el.dataset.action="discard";
+    el.dataset.eventId=eventId!=null?String(eventId):"";
+    el.dataset.sourceEventId="";
+
+    const main=document.createElement("div");
+    main.className="player-event-main player-event-main-inline";
+
+    const nameEl=document.createElement("span");
+    nameEl.className="player-event-name";
+    nameEl.textContent=copy.name;
+    main.appendChild(nameEl);
+
+    const actionEl=document.createElement("span");
+    actionEl.className="player-event-action";
+    actionEl.textContent=copy.actionWord;
+    main.appendChild(actionEl);
+
+    if(options.tile){
+      main.appendChild(renderEventPopupTile(options.tile));
+    }
+
+    el.appendChild(main);
+  }
+
+  function renderInto(el){
+    if(type==="discard")renderDiscard(el);
+    else renderClaimStack(el);
   }
 
   const shouldUpgrade=
@@ -1032,11 +1141,11 @@ export function showPlayerEvent(options={}){
     raf:0,
     priority,
     eventId,
-    action
+    action:type
   };
   activePlayerEvents.set(playerIndex,slot);
 
-  if(action==="discard"&&eventId!=null){
+  if(type==="discard"&&eventId!=null){
     activeDiscardEvent={eventId,playerIndex};
   }else if(shouldUpgrade){
     activeDiscardEvent=null;
@@ -1048,21 +1157,24 @@ export function showPlayerEvent(options={}){
     el.classList.remove("is-hide");
   });
 
-  slot.timer=setTimeout(()=>{
-    slot.timer=0;
-    dismissPlayerEvent(playerIndex);
-  },duration);
+  // blocking（自己胡）一直显示，等确认
+  if(!blocking){
+    slot.timer=setTimeout(()=>{
+      slot.timer=0;
+      dismissPlayerEvent(playerIndex);
+    },duration);
+  }
 }
 
 function updateDiscardCue(latest,animate,players){
   if(!latest?.tile||!animate)return;
-  showPlayerEvent({
+  showDiscardEvent({
     playerIndex:latest.player,
-    action:"discard",
     tile:latest.tile,
     eventId:latest.eventId,
     players:players||[],
-    duration:1200
+    duration:1400,
+    showSelfDiscard:true
   });
 }
 
@@ -1079,13 +1191,13 @@ export function showPlayerActionEffect(playerIndex,actionName,tile,scoreText="")
     补杠:"buGang",
     胡:"hu"
   };
+  const type=map[actionName]||actionName||"peng";
   showPlayerEvent({
     playerIndex,
-    action:map[actionName]||actionName||"peng",
-    tile:tile||null,
-    scoreText:scoreText||"",
+    type,
+    score:scoreText||"",
     players:[],
-    duration:1000
+    duration:PLAYER_EVENT_DEFAULTS[type]?.duration
   });
 }
 
@@ -1204,45 +1316,6 @@ export function hideReaction(){
   buttonBox.innerHTML="";
 }
 
-export function showWin(headline,info,onContinue,mannerNote="",winTile=null){
-  document.getElementById("winHeading").textContent="胡牌";
-  document.getElementById("winTitle").textContent=headline;
-  const breakdownBits=[];
-  if(info?.basePattern){
-    breakdownBits.push(`基础牌型：${info.basePattern} ${info.baseFan??"?"}番`);
-  }
-  if(info?.rootCount!=null)breakdownBits.push(`根：${info.rootCount}`);
-  (info?.extraFans||[]).forEach(e=>breakdownBits.push(`${e.label}+${e.fan}番`));
-  if(info?.totalFan!=null)breakdownBits.push(`总番 ${info.totalFan} · ×${info.multiplier??1}`);
-  const parts=[mannerNote,info?.detail,...breakdownBits].filter(Boolean);
-  document.getElementById("winDetail").textContent=parts.join(" · ");
-
-  const face=document.getElementById("winTileFace");
-  if(face){
-    face.innerHTML="";
-    if(winTile){
-      face.hidden=false;
-      face.appendChild(createTileElement(winTile,"tile-win"));
-    }else{
-      face.hidden=true;
-    }
-  }
-
-  const scoreEl=document.getElementById("winScore");
-  if(scoreEl){
-    scoreEl.textContent=info?.scoreLine||"";
-    scoreEl.hidden=!info?.scoreLine;
-  }
-  document.getElementById("winContinue").textContent="继续血战";
-  document.getElementById("winModal").classList.add("show");
-
-  const button=document.getElementById("winContinue");
-  button.onclick=()=>{
-    document.getElementById("winModal").classList.remove("show");
-    onContinue();
-  };
-}
-
 export function showRoundEnd(reason,summary,onNewGame,settlement=null){
   document.getElementById("roundEndTitle").textContent=reason;
   const pigLines=(settlement?.flowerPigResults||[])
@@ -1346,6 +1419,22 @@ export function renderRoundReveal(state,settlement,handlers={}){
     const delta=sum?.delta??0;
     const total=sum?.total??0;
 
+    const row=document.createElement("div");
+    row.className="reveal-seat-row";
+    card.appendChild(row);
+
+    const main=document.createElement("div");
+    main.className="reveal-seat-main";
+    row.appendChild(main);
+
+    const scoreBox=document.createElement("div");
+    scoreBox.className="reveal-seat-score";
+    scoreBox.innerHTML=`
+      <span class="reveal-delta">${delta>0?"+"+delta:String(delta)}</span>
+      <span class="reveal-total">总分 ${total}</span>
+    `;
+    row.appendChild(scoreBox);
+
     const head=document.createElement("div");
     head.className="reveal-seat-head";
     head.innerHTML=`
@@ -1359,20 +1448,16 @@ export function renderRoundReveal(state,settlement,handlers={}){
             ?bits.map(b=>`<span class="reveal-bit">${b}</span>`).join("")
             :`<span class="reveal-bit reveal-bit-muted">${sum?.status||"本局无独立流水"}</span>`
         }</div>
-        <div class="reveal-seat-score">
-          <span class="reveal-delta">${delta>0?"+"+delta:String(delta)}</span>
-          <span class="reveal-total">总分 ${total}</span>
-        </div>
       </div>
     `;
-    card.appendChild(head);
+    main.appendChild(head);
 
     const tilesRow=document.createElement("div");
-    tilesRow.className="reveal-tiles-row";
+    tilesRow.className="reveal-tiles-row result-tiles-wrap";
 
     (player.melds||[]).forEach(meld=>{
       const group=document.createElement("div");
-      group.className="reveal-meld-group";
+      group.className="reveal-meld-group meld-group";
       (meld.tiles||[]).forEach(tile=>{
         group.appendChild(createTileElement(tile,"tile-reveal"));
       });
@@ -1380,7 +1465,7 @@ export function renderRoundReveal(state,settlement,handlers={}){
     });
 
     const handGroup=document.createElement("div");
-    handGroup.className="reveal-hand-inline";
+    handGroup.className="reveal-hand-inline hand-group";
     const winTile=player.won?player.winTile:null;
     const hand=player.hand||[];
     let winHandIndex=-1;
@@ -1432,7 +1517,7 @@ export function renderRoundReveal(state,settlement,handlers={}){
       tilesRow.appendChild(waitGroup);
     }
 
-    card.appendChild(tilesRow);
+    main.appendChild(tilesRow);
     list.appendChild(card);
   });
 
