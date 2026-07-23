@@ -24,8 +24,10 @@ alwaysApply: true
 - SW 注册固定：`shared/pwa.js` 内 `new URL("../service-worker.js", import.meta.url)`；改预缓存须 bump `nocturne-games-vN`；不碰 localStorage。
 - 小改直接编码；大改（约 300+ 行 / 数据结构 / 流程 / 新模块）先给方案、文件、风险、测试点，确认后再写。
 - 完成后输出：修改文件、修改内容、新增函数、流程变化、数据结构变化、测试建议、已知问题。
+- 收工必须跑 `python scripts/verify.py`，并更新 `docs/test-results/latest-test-result.md`（见 `development-workflow.mdc`）。
 - 优先级：可读性 > 可维护性 > 扩展性 > 功能数量。
 - Debug Mode（如规则测试）仅 localhost，正式环境隐藏。
+- 项目记忆以 Git 内 `docs/` 与 `.cursor/rules/` 为准，不以聊天记录为准。
 
 ## Guide 更新时
 

@@ -1,0 +1,68 @@
+---
+description: Coding 收工检查与跨会话交接工作流（强制）
+alwaysApply: true
+---
+
+# Development Workflow（强制）
+
+## 项目记忆原则
+
+- **Cursor 聊天记录不是项目长期记忆。**
+- 重要需求、设计、决策、测试结果必须写入 Git 管理的 `docs/` 与 `.cursor/rules/`。
+- 换电脑 / 新会话时，以仓库内文档为准，不要依赖旧聊天。
+
+## 开发前（新会话必做）
+
+1. 阅读：
+   - `docs/00_project_handoff.md`
+   - `docs/04_decisions.md`
+   - `docs/05_next_tasks.md`
+   - `docs/Nocturne_Games_Project_Guide.md`
+2. 运行：`python scripts/verify.py`（或 `pwsh -File scripts/verify.ps1`）
+3. 再开始改代码。
+
+## Coding 后收工检查（不可跳过）
+
+完成任何实现后，**不得直接说完成**，必须按序执行：
+
+1. **对照修改内容补充/更新测试**  
+   - 规则/计分/胡牌/副露计划 → 更新 `mahjong/rule-tests.js`  
+   - 静态结构 / SW 预缓存 → 由 `scripts/verify.py` smoke 覆盖  
+   - 纯 UI 交互若无法自动化 → 在 `docs/05_next_tasks.md` 与测试结果中写明人工验收点
+
+2. **运行统一检查**  
+   ```bash
+   python scripts/verify.py
+   ```
+   等价入口：`scripts/verify.ps1` / `scripts/verify.sh`  
+   （本仓库 **禁止 npm**；无 `package.json` 的 lint/typecheck/build。）
+
+3. **失败必须先修**  
+   - verify 失败时先修复再汇报  
+   - 若环境缺 Node 导致单测无法跑：写清原因、本机如何安装/定位 Node，并记入 TODO；**不得假装通过**
+
+4. **更新测试结果**  
+   - 写入 / 覆盖：`docs/test-results/latest-test-result.md`  
+   - 含：日期、任务、修改文件、命令、结果、失败与修复、剩余风险
+
+5. **视需要更新交接文档**  
+   - 阶段变化 → `docs/00_project_handoff.md`  
+   - 新决策 → `docs/04_decisions.md`  
+   - 任务勾选 / 新债 → `docs/05_next_tasks.md`  
+   - 麻将行为变更 → `mahjong/CHANGELOG.md`
+
+## 命令对照（本仓库）
+
+| 习惯名称 | 本仓库做法 |
+|---|---|
+| lint | SKIP（无 ESLint；Guide 禁止 npm 工具链） |
+| typecheck | SKIP（无 TypeScript） |
+| test / test:unit | `python scripts/verify.py` 内嵌麻将 `rule-tests` |
+| test:e2e | 人工（localhost + 真机）；见 next_tasks |
+| build | SKIP 形式；由 smoke（关键文件 + SW precache 落盘）替代 |
+| verify | **`python scripts/verify.py`** |
+
+## 与 Guide 规则的关系
+
+- 工程约束仍以 `nocturne-games-guide.mdc` + `docs/Nocturne_Games_Project_Guide.md` 为准。
+- 本文件只管「如何收工与交接」，不覆盖禁止 npm / TS / 框架等条款。
