@@ -1,3 +1,16 @@
+# v0.15.24
+
+## 普通手机横屏五问题集中修复
+
+- 左右副露统一 `--side-meld-tile-*`；compact 禁止按座位单独 `--meld-zone-tile-scale`
+- 对家 / 自己黑底收紧：`--top-zone-height:14%`、`--bottom-zone-height:18%`
+- 暗杠改为单层固定 4 张：`背·明·明·背`（取消四底+二顶叠层）
+- 左右座位限制在 `--side-safe-top/bottom`，不进入自己手牌区
+- 自己手牌区 `overflow:visible` + `--selected-tile-lift`，选中上浮不再被裁
+
+- Service Worker：`nocturne-games-v115`
+
+---
 # v0.15.23
 
 ## 横屏顶栏可滚走 + 牌桌满屏

@@ -972,14 +972,15 @@ export function runRuleTests(){
     assert(plan.widthScale===1.1);
   });
 
-  record("MV3","暗杠双层无来源","四底 + 二顶",()=>{
+  record("MV3","暗杠单层四张无来源","背·明·明·背",()=>{
     const tiles=[T("t",5,1),T("t",5,2),T("t",5,3),T("t",5,4)];
     const plan=buildMeldTilePlan({type:"anGang",from:0,tiles},0);
     assert(plan.sourcePosition===null);
     assert(plan.layers.base.length===4);
-    assert(plan.layers.top.length===2);
+    assert(plan.layers.top===null);
+    assert(plan.widthScale===1);
     assert(plan.layers.base.every(i=>!i.isSource));
-    assert(plan.layers.top.every(i=>!i.isSource));
+    assert(plan.layers.base.map(i=>i.face).join(",")==="back,show,show,back");
   });
 
   record("MV4","旧存档缺 from","无来源描边",()=>{

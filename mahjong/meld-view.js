@@ -240,11 +240,12 @@ const MELD_WIDTH_SCALE={
   peng:1,
   mingGang:1.1,
   buGang:1.1,
-  anGang:1.1
+  anGang:1
 };
 
 /**
- * 副露展示计划：分层（碰单层 / 明杠·补杠三+一 / 暗杠四+二）
+ * 副露展示计划：分层（碰单层 / 明杠·补杠三+一 / 暗杠单层四张）
+ * 暗杠固定 4 张：牌背 · 明牌 · 明牌 · 牌背（不再叠层追加）
  * sourcePosition = 屏幕方位 left|right|top|bottom（供 class）
  * @param {object|null|undefined} meld
  * @param {number} ownerSeat
@@ -260,18 +261,21 @@ export function buildMeldTilePlan(meld,ownerSeat){
   const widthScale=MELD_WIDTH_SCALE[type]??1;
 
   if(type==="anGang"){
-    const topTiles=tiles.length>=4?[tiles[1],tiles[2]]:tiles.slice(0,2);
+    const row=tiles.slice(0,4).map((tile,tileIndex)=>({
+      tile,
+      isSource:false,
+      face:(tileIndex===1||tileIndex===2)?"show":"back"
+    }));
+    while(row.length<4){
+      row.push({tile:tiles[0]||null,isSource:false,face:row.length===1||row.length===2?"show":"back"});
+    }
     return {
       type,
       widthScale,
       sourcePosition:null,
       layers:{
-        base:tiles.slice(0,4).map(tile=>({tile,isSource:false,face:"back"})),
-        top:topTiles.map((tile,tileIndex)=>({
-          tile,
-          isSource:false,
-          face:ownerSeat===0&&tileIndex===1?"show":"back"
-        }))
+        base:row.slice(0,4),
+        top:null
       }
     };
   }

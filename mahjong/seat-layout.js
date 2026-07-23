@@ -124,15 +124,15 @@ const SEAT_POSITION={
 
 const COMPACT_POSITION={
   self:{
-    "--seat-local-top":"34%",
-    "--seat-local-bottom":"24%",
+    "--seat-local-top":"var(--compact-center-top)",
+    "--seat-local-bottom":"var(--bottom-zone-height)",
     "--seat-local-left":"var(--seat-h-inset)",
     "--seat-local-right":"var(--seat-h-inset)",
     "--seat-local-max-main":"var(--discard-center-max-w)",
     "--seat-local-max-cross":"none"
   },
   opposite:{
-    "--seat-local-top":"22%",
+    "--seat-local-top":"var(--top-zone-height)",
     "--seat-local-bottom":"50%",
     "--seat-local-left":"var(--seat-h-inset)",
     "--seat-local-right":"var(--seat-h-inset)",
@@ -140,16 +140,16 @@ const COMPACT_POSITION={
     "--seat-local-max-cross":"none"
   },
   left:{
-    "--seat-local-top":"34%",
-    "--seat-local-bottom":"36%",
+    "--seat-local-top":"var(--side-safe-top)",
+    "--seat-local-bottom":"var(--side-safe-bottom)",
     "--seat-local-left":"var(--band-side)",
     "--seat-local-right":"50%",
     "--seat-local-max-main":"100%",
     "--seat-local-max-cross":"min(26%, var(--discard-side-max-w))"
   },
   right:{
-    "--seat-local-top":"34%",
-    "--seat-local-bottom":"36%",
+    "--seat-local-top":"var(--side-safe-top)",
+    "--seat-local-bottom":"var(--side-safe-bottom)",
     "--seat-local-left":"50%",
     "--seat-local-right":"var(--band-side)",
     "--seat-local-max-main":"100%",
@@ -203,7 +203,8 @@ function applyMeldZoneCapacity(localEl,config){
   zone.style.removeProperty("--meld-zone-tile-scale");
 
   const isVertical=config.metrics==="vertical";
-  const defaultGap=6;
+  const compact=isCompactLandscape();
+  const defaultGap=compact?4:6;
   const minGap=2;
   zone.style.setProperty("--meld-flex-direction",isVertical?"column":"row");
   zone.style.setProperty("--meld-group-gap",`${defaultGap}px`);
@@ -246,9 +247,12 @@ function applyMeldZoneCapacity(localEl,config){
       gap=Math.max(minGap,roomForGaps/Math.max(1,n-1));
     }else{
       gap=minGap;
-      const budget=Math.max(1,usableMain-gap*(n-1));
-      const scale=Math.max(0.55,Math.min(1,budget/Math.max(1,groupsMain)));
-      zone.style.setProperty("--meld-zone-tile-scale",String(Number(scale.toFixed(4))));
+      // compact-landscape：左右统一牌面尺寸，禁止按座位单独 scale
+      if(!compact){
+        const budget=Math.max(1,usableMain-gap*(n-1));
+        const scale=Math.max(0.55,Math.min(1,budget/Math.max(1,groupsMain)));
+        zone.style.setProperty("--meld-zone-tile-scale",String(Number(scale.toFixed(4))));
+      }
     }
   }
   zone.style.setProperty("--meld-group-gap",`${Math.round(gap*10)/10}px`);

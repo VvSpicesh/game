@@ -1687,11 +1687,13 @@ function auditAnGangDisplay(){
       return {w:Math.round(r.width*10)/10,h:Math.round(r.height*10)/10};
     });
     const sizeOk=sizes.length<=1||sizes.every(s=>s.w===sizes[0].w&&s.h===sizes[0].h);
+    const faces=anGroups.map(g=>[...g.querySelectorAll(".meld-tile-wrap .tile")].map(el=>el.classList.contains("tile-back")?"back":"show"));
     return {
       index,
       groupCount:groups.length,
       anGangCount:anGroups.length,
-      baseTilesPerAn:anGroups.map(g=>g.querySelectorAll(".meld-layer-base .meld-tile-wrap").length),
+      tilesPerAn:anGroups.map(g=>g.querySelectorAll(".meld-tile-wrap").length),
+      faces,
       flexWrap:zoneStyle?.flexWrap||null,
       overlap,
       sizeOk,
