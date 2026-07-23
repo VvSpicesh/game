@@ -1,3 +1,58 @@
+# v0.15.23
+
+## 横屏顶栏可滚走 + 牌桌满屏
+
+- 牌桌改为近 `100dvh` 固定高度，不再被顶栏挤占后压缩裁切
+- `.app` 可纵向滚动：换三张 / 规则行随页面滚走后，牌桌独占一屏
+- 右侧增加 safe-area 内边距，减轻下家弃牌贴边被挡
+
+- Service Worker：`nocturne-games-v114`
+
+---
+# v0.15.22
+
+## 暗杠叠层显示修复
+
+- 对家暗杠不再反向叠层（原先四底在上、二顶在下，看起来像 U 形错位）
+- 四家统一为二顶在上、四底在下
+- 左右家顶层改为纵向排列，与竖排底牌对齐
+
+- Service Worker：`nocturne-games-v113`
+
+---
+# v0.15.21
+
+## 横屏牌桌一屏显示
+
+- 去掉 compact-landscape 牌桌 `min-height: 620px` 强制撑高
+- `.app` flex 列布局，`.game-layout` / `.table` 填满顶栏以下剩余视口
+- 百分比分区（上家 22% / 手牌 24% 等）重新按可视高度计算
+
+- Service Worker：`nocturne-games-v112`
+
+---
+# v0.15.20
+
+## 横屏滚动修复（顶栏仍可滚走）
+
+- compact-landscape 改回 `.app` 锁定视口高度 + 内部纵向滚动（手机触摸可靠）
+- 顶栏与规则行在 `.app` 滚动流内，不再单独固定；取消 `.game-layout` 内层滚动
+- `html/body` 禁止外层滚动，避免双滚动条抢手势
+
+- Service Worker：`nocturne-games-v111`
+
+---
+# v0.15.19
+
+## 横屏整页滚动（顶栏不再固定）
+
+- compact-landscape 改回 `.app` 整页纵向滚动，顶栏与「换三张」规则行随页面滚走
+- 取消 `.game-layout` 内层滚动，避免工具栏占住视口高度、底部手牌看不全
+- 全屏模式与横屏共用同一套滚动策略
+
+- Service Worker：`nocturne-games-v110`
+
+---
 # v0.15.18
 
 ## 普通手机横屏恢复纵向滚动

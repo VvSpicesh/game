@@ -1472,13 +1472,14 @@ body.layout-debug .seat-local .event-anchor:empty::after{
   gap:2px
 }
 
+/* 对家暗杠/杠叠层与自己同向：二顶在上、四底在下，避免反向叠成 U 形 */
 .seat-local[data-seat-side="opposite"] .meld-stack{
-  padding-top:0;
-  padding-bottom:calc(var(--_meld-th) * .42)
+  padding-top:calc(var(--_meld-th) * .42);
+  padding-bottom:0
 }
 .seat-local[data-seat-side="opposite"] .meld-layer-top{
-  top:auto;
-  bottom:0;
+  top:0;
+  bottom:auto;
   transform:translateX(-50%)
 }
 
@@ -1493,11 +1494,13 @@ body.layout-debug .seat-local .event-anchor:empty::after{
   padding-right:calc(var(--_meld-tw) * .42)
 }
 .seat-local[data-seat-side="left"] .meld-layer-flat,
-.seat-local[data-seat-side="left"] .meld-layer-base{
+.seat-local[data-seat-side="left"] .meld-layer-base,
+.seat-local[data-seat-side="left"] .meld-layer-top{
   flex-direction:column
 }
 .seat-local[data-seat-side="right"] .meld-layer-flat,
-.seat-local[data-seat-side="right"] .meld-layer-base{
+.seat-local[data-seat-side="right"] .meld-layer-base,
+.seat-local[data-seat-side="right"] .meld-layer-top{
   flex-direction:column
 }
 .seat-local[data-seat-side="left"] .meld-layer-top{
@@ -2197,24 +2200,31 @@ body.layout-debug .seat-local .event-anchor:empty::after{
 @media (orientation: landscape) and (max-height: 600px) {
   html,
   body{
-    height:auto;
+    height:100%;
     min-height:100%;
     min-height:100dvh;
-    overflow-x:hidden;
-    overflow-y:auto
+    overflow:hidden
   }
   :root {
     --tile-w: clamp(20px, 8.2vh, 34px);
   }
 
   .app {
-    padding: 2px max(4px, env(safe-area-inset-right)) 2px max(4px, env(safe-area-inset-left));
+    display: flex;
+    flex-direction: column;
+    padding: 2px max(8px, env(safe-area-inset-right)) 2px max(4px, env(safe-area-inset-left));
     height: 100vh;
     height: 100dvh;
-    min-height: 100vh;
-    min-height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    min-height: 0;
     overflow-x: hidden;
-    overflow-y: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    scroll-padding-bottom: max(24px, env(safe-area-inset-bottom));
   }
 
   .topbar,
@@ -2223,9 +2233,11 @@ body.layout-debug .seat-local .event-anchor:empty::after{
     gap: 4px;
     align-items: center;
     flex-wrap: nowrap;
+    flex: 0 0 auto;
   }
   .mahjong-controls{
-    margin-bottom:4px
+    margin-bottom:4px;
+    flex:0 0 auto
   }
   .ng-header-back{
     font-size:16px
@@ -2278,15 +2290,9 @@ body.layout-debug .seat-local .event-anchor:empty::after{
     display: flex;
     flex-direction: column;
     gap: 4px;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-    touch-action: pan-y;
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
-    scroll-padding-bottom: max(24px, env(safe-area-inset-bottom));
+    overflow: visible;
   }
 
   .sidebar {
@@ -2297,10 +2303,13 @@ body.layout-debug .seat-local .event-anchor:empty::after{
     position: relative;
     width: 100%;
     max-width: 100%;
+    flex: 0 0 auto;
     aspect-ratio: auto;
-    height: auto;
+    /* 牌桌按近满屏高度占位；顶栏在上方，滚走后牌桌独占一屏 */
+    height: calc(100vh - 6px);
+    height: calc(100dvh - 6px);
     max-height: none;
-    min-height: max(620px, calc(var(--tile-h) * 9.8));
+    min-height: 0;
     border-radius: 12px;
     overflow: hidden;
     container-type: size;
